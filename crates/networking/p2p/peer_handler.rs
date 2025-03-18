@@ -85,6 +85,18 @@ impl RequestRangesMetrics {
     }
 }
 
+// Metrics in microseconds
+pub struct RequestStorageRangesMetrics {
+    pub full_time: u128,
+    pub find_peer: u128,
+    pub lock_peer: u128,
+    pub send_req_await_res: u128,
+    pub validate_res: u128,
+    pub verify_range_cummulative: u128,
+    pub verify_range_max: u128,
+    pub ranges: usize,
+}
+
 /// An abstraction over the [KademliaTable] containing logic to make requests to peers
 #[derive(Debug, Clone)]
 pub struct PeerHandler {
@@ -285,13 +297,12 @@ impl PeerHandler {
             let (peer_response, lock_peer, send_req_await_res) = {
                 let lock_peer_time = Instant::now();
                 let mut receiver = peer.receiver.lock().await;
+                let lock_peer = lock_peer_time.elapsed().as_millis();
+                let send_req_await_res_time = Instant::now();
                 if let Err(err) = peer.sender.send(request).await {
                     debug!("Failed to send message to peer: {err}");
                     continue;
                 }
-                let lock_peer = lock_peer_time.elapsed().as_millis();
-                let send_req_await_res_time = Instant::now();
-                peer.sender.send(request).await.ok()?;
                 let res = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
                     loop {
                         match receiver.recv().await {
@@ -422,8 +433,13 @@ impl PeerHandler {
                 limit_hash: HASH_MAX,
                 response_bytes: MAX_RESPONSE_BYTES,
             });
+            let find_peer_time = Instant::now();
             let peer = self.get_peer_channel_with_retry(Capability::Snap).await?;
+            let find_peer = find_peer_time.elapsed().as_millis();
+            let lock_peer_time = Instant::now();
             let mut receiver = peer.receiver.lock().await;
+            let lock_peer = lock_peer_time.elapsed().as_millis();
+            let send_req_await_res_time = Instant::now();
             if let Err(err) = peer.sender.send(request).await {
                 debug!("Failed to send message to peer: {err}");
                 continue;
@@ -446,6 +462,8 @@ impl PeerHandler {
             .ok()
             .flatten()
             {
+                let send_req_await_res = send_req_await_res_time.elapsed().as_millis();
+                let validate_res_time = Instant::now();
                 // Check we got a reasonable amount of storage ranges
                 if slots.len() > storage_roots.len() || slots.is_empty() {
                     return None;
@@ -456,6 +474,9 @@ impl PeerHandler {
                 let mut storage_values = vec![];
                 let mut should_continue = false;
                 // Validate each storage range
+                let ranges = slots.len();
+                let mut verify_range_cummulative = 0;
+                let mut verify_range_max = 0;
                 while !slots.is_empty() {
                     let (hashed_keys, values): (Vec<_>, Vec<_>) = slots
                         .remove(0)
@@ -489,6 +510,9 @@ impl PeerHandler {
                     {
                         continue;
                     }
+                    let this_verify_range = call_verify_range.elapsed().as_millis();
+                    verify_range_cummulative += this_verify_range;
+                    verify_range_max = std::cmp::max(this_verify_range, verify_range_max);
 
                     storage_keys.push(hashed_keys);
                     storage_values.push(values);

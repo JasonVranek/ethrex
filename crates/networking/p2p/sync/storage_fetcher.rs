@@ -23,6 +23,11 @@ use crate::{
 };
 
 use super::SyncError;
+struct StorageFetcherMetrics {
+    request_range_metrics: RequestStorageRangesMetrics,
+    full_time: u128,
+    write_snapshot: u128,
+}
 
 /// An in-progress large storage trie fetch request
 struct LargeStorageRequest {
@@ -90,6 +95,11 @@ pub(crate) async fn storage_fetcher(
         // Fetch incoming requests
         let mut msg_buffer = vec![];
         if receiver.recv_many(&mut msg_buffer, MAX_CHANNEL_READS).await != 0 {
+            info!(
+                "Received {} incoming storage requests, {} in queue",
+                msg_buffer.iter().flatten().count(),
+                pending_storage.len() + msg_buffer.iter().flatten().count()
+            );
             for account_hashes_and_roots in msg_buffer {
                 if !account_hashes_and_roots.is_empty() {
                     pending_storage.extend(account_hashes_and_roots);
@@ -137,6 +147,10 @@ pub(crate) async fn storage_fetcher(
                 pending_storage.extend(remaining);
                 stale |= is_stale;
             }
+            info!(
+                "{} pending storages after fetch cycle",
+                pending_storage.len()
+            )
         }
     }
     debug!(
@@ -168,8 +182,9 @@ async fn fetch_storage_batch(
         batch.first().unwrap().0,
         batch.last().unwrap().0
     );
+    let full = Instant::now();
     let (batch_hahses, batch_roots) = batch.clone().into_iter().unzip();
-    if let Some((mut keys, mut values, incomplete)) = peers
+    if let Some((mut keys, mut values, incomplete, request_range_metrics)) = peers
         .request_storage_ranges(state_root, batch_roots, batch_hahses, H256::zero())
         .await
     {
@@ -208,6 +223,13 @@ async fn fetch_storage_batch(
             .await?;
         // Send complete storages to the rebuilder
         storage_trie_rebuilder_sender.send(filled_storages).await?;
+        let full_time = full.elapsed().as_millis();
+        let metrics = StorageFetcherMetrics {
+            request_range_metrics,
+            full_time,
+            write_snapshot,
+        };
+        metrics.show();
         // Return remaining code hashes in the batch if we couldn't fetch all of them
         return Ok((batch, false));
     }
