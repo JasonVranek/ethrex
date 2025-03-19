@@ -114,9 +114,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-chains"
-version = "0.1.66"
+version = "0.1.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8e42c54af787e3521229df1787d7b8300910dc6d9d04d378eb593b26388bd11"
+checksum = "28e2652684758b0d9b389d248b209ed9fd9989ef489a550265fe4bb8454fe7eb"
 dependencies = [
  "alloy-primitives 0.8.23",
  "num_enum 0.7.3",
@@ -1437,9 +1437,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "1.7.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b17679a8d69b6d7fd9cd9801a536cec9fa5e5970b69f9d4747f70b39b031f5e7"
+checksum = "389a099b34312839e16420d499a9cad9650541715937ffbdd40d36f49e77eeb3"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -2884,9 +2884,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3716d7a920fb4fac5d84e9d4bce8ceb321e9414b4409da61b07b75c1e3d0697"
+checksum = "13c863f0904021b108aa8b2f55046443e6b1ebde8fd4a15c399893aae4fa069f"
 dependencies = [
  "anstream",
  "anstyle",
@@ -4730,9 +4730,9 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "jiff"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d699bc6dfc879fb1bf9bdff0d4c56f0884fc6f0d0eb0fba397a6d00cd9a6b85e"
+checksum = "c102670231191d07d37a35af3eb77f1f0dbf7a71be51a962dcd57ea607be7260"
 dependencies = [
  "jiff-static",
  "log",
@@ -4743,9 +4743,9 @@ dependencies = [
 
 [[package]]
 name = "jiff-static"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d16e75759ee0aa64c57a56acbf43916987b20c77373cb7e808979e02b93c9f9"
+checksum = "4cdde31a9d349f1b1f51a0b3714a5940ac022976f4b49485fc04be052b183b4c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6581,12 +6581,12 @@ dependencies = [
 [[package]]
 name = "pico-cli"
 version = "1.0.1"
-source = "git+https://github.com/brevis-network/pico#286feb9878d9e09347852e5bf127b8ff81a2b45c"
+source = "git+https://github.com/brevis-network/pico#ece7e7e8401e7907924bf829503000bce3b4e963"
 dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap 4.5.32",
- "env_logger 0.11.7",
+ "env_logger 0.11.8",
  "hex",
  "log",
  "num-bigint 0.4.6",
@@ -6602,7 +6602,7 @@ dependencies = [
 [[package]]
 name = "pico-derive"
 version = "0.1.0"
-source = "git+https://github.com/brevis-network/pico#286feb9878d9e09347852e5bf127b8ff81a2b45c"
+source = "git+https://github.com/brevis-network/pico#ece7e7e8401e7907924bf829503000bce3b4e963"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6612,7 +6612,7 @@ dependencies = [
 [[package]]
 name = "pico-patch-libs"
 version = "1.0.1"
-source = "git+https://github.com/brevis-network/pico#286feb9878d9e09347852e5bf127b8ff81a2b45c"
+source = "git+https://github.com/brevis-network/pico#ece7e7e8401e7907924bf829503000bce3b4e963"
 dependencies = [
  "bincode",
  "serde",
@@ -6621,12 +6621,12 @@ dependencies = [
 [[package]]
 name = "pico-sdk"
 version = "1.0.1"
-source = "git+https://github.com/brevis-network/pico#286feb9878d9e09347852e5bf127b8ff81a2b45c"
+source = "git+https://github.com/brevis-network/pico#ece7e7e8401e7907924bf829503000bce3b4e963"
 dependencies = [
  "anyhow",
  "bincode",
  "cfg-if",
- "env_logger 0.11.7",
+ "env_logger 0.11.8",
  "getrandom 0.2.15",
  "hex",
  "lazy_static",
@@ -6647,7 +6647,7 @@ dependencies = [
 [[package]]
 name = "pico-vm"
 version = "1.0.1"
-source = "git+https://github.com/brevis-network/pico#286feb9878d9e09347852e5bf127b8ff81a2b45c"
+source = "git+https://github.com/brevis-network/pico#ece7e7e8401e7907924bf829503000bce3b4e963"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -7834,9 +7834,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-ethereum-contracts"
-version = "1.4.2"
+version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b813117b10f8293475b98a3c4bb3ff0999334803b49b0512f7157acf74a5b9fe"
+checksum = "9bc9406a64e5945b3122a4bd2615222ad740efc3b6e86be04a89f98460acdcb6"
 dependencies = [
  "alloy",
  "alloy-sol-types",

@@ -15,7 +15,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::{debug, info};
 
 use crate::{
-    peer_handler::PeerHandler,
+    peer_handler::{PeerHandler, RequestRangesMetrics},
     sync::{
         trie_rebuild::REBUILDER_INCOMPLETE_STORAGE_ROOT, MAX_CHANNEL_MESSAGES, MAX_CHANNEL_READS,
         MAX_PARALLEL_FETCHES, STORAGE_BATCH_SIZE,
@@ -32,6 +32,33 @@ struct LargeStorageRequest {
 }
 
 /// Waits for incoming account hashes & storage roots from the receiver channel endpoint, queues them, and fetches and stores their storages in batches
+struct StorageFetcherMetrics {
+    request_range_metrics: RequestRangesMetrics,
+    full_time: u128,
+    write_snapshot: u128,
+}
+
+impl StorageFetcherMetrics {
+    fn show(&self) {
+        let write_snapshot_percentage = (100 * self.write_snapshot) / self.full_time;
+        let request_range_percentage =
+            (100 * self.request_range_metrics.full_time) / self.full_time;
+        info!(
+            "Fetched storage batch of len {} in {} ms.
+            Time Breakdown:
+            {request_range_percentage}% Requesting Ranges ({}ms)
+            {write_snapshot_percentage}% Writing Snapshot ({}ms)
+            Request Range time breakdown:
+            {}",
+            self.request_range_metrics.ranges,
+            self.full_time,
+            self.request_range_metrics.full_time,
+            self.write_snapshot,
+            self.request_range_metrics.breakdown()
+        );
+    }
+}
+/// Waits for incoming account hashes & storage roots from the receiver channel endpoint, queues them, and fetches and stores their bytecodes in batches
 /// This function will remain active until either an empty vec is sent to the receiver or the pivot becomes stale
 /// Upon finish, remaining storages will be sent to the storage healer
 pub(crate) async fn storage_fetcher(
