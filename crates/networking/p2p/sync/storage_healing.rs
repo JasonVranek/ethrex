@@ -5,22 +5,18 @@
 //! For each storage received, the process will first queue their root nodes and then queue all the missing children from each node fetched in the same way as state healing
 //! Even if the pivot becomes stale, the healer will remain active and listening until a termination signal (an empty batch) is received
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Instant};
 
 use ethrex_common::H256;
 use ethrex_storage::Store;
 use ethrex_trie::{Nibbles, EMPTY_TRIE_HASH};
 use tokio::sync::mpsc::Receiver;
-use tracing::debug;
+use tracing::{debug, info};
 
-<<<<<<< HEAD
-use crate::{peer_handler::PeerHandler, sync::node_missing_children};
-=======
 use crate::{
     peer_handler::PeerHandler,
     sync::{node_missing_children, SHOW_PROGRESS_INTERVAL_DURATION},
 };
->>>>>>> b47d32200 (Add account range fetching metrics + fmt)
 
 use super::{SyncError, MAX_CHANNEL_READS, MAX_PARALLEL_FETCHES, NODE_BATCH_SIZE};
 
@@ -39,30 +35,23 @@ pub(crate) async fn storage_healer(
         .unwrap_or_default()
         .into_iter()
         .collect();
-<<<<<<< HEAD
-=======
     let mut time_since_info = Instant::now();
     info!(
         "Spawned Storage Healer, backlog: {} storage paths",
         pending_paths.iter().flat_map(|(_, a)| a).count()
     );
->>>>>>> b47d32200 (Add account range fetching metrics + fmt)
     // The pivot may become stale while the fetcher is active, we will still keep the process
     // alive until the end signal so we don't lose queued messages
     let mut stale = false;
     let mut incoming = true;
-<<<<<<< HEAD
     while incoming {
-=======
-    while incoming || !pending_paths.is_empty() {
-        if time_since_info.elapsed() > Duration::from_secs(200) {
+        if time_since_info.elapsed() > SHOW_PROGRESS_INTERVAL_DURATION {
             info!(
                 "Storage Healer queue: {} paths",
                 pending_paths.iter().flat_map(|(_, a)| a).count()
             );
             time_since_info = Instant::now();
         }
->>>>>>> b47d32200 (Add account range fetching metrics + fmt)
         // If we have enough pending storages to fill a batch
         // or if we have no more incoming batches, spawn a fetch process
         // If the pivot became stale don't process anything and just save incoming requests
@@ -98,13 +87,6 @@ pub(crate) async fn storage_healer(
             // Fetch incoming requests
             let mut msg_buffer = vec![];
             if receiver.recv_many(&mut msg_buffer, MAX_CHANNEL_READS).await != 0 {
-<<<<<<< HEAD
-=======
-                info!(
-                    "Received {} storage heal requests",
-                    msg_buffer.iter().flatten().count()
-                );
->>>>>>> b47d32200 (Add account range fetching metrics + fmt)
                 for account_hashes in msg_buffer {
                     if !account_hashes.is_empty() {
                         pending_paths.extend(
@@ -125,17 +107,13 @@ pub(crate) async fn storage_healer(
     }
     let healing_complete = pending_paths.is_empty();
     // Store pending paths
-<<<<<<< HEAD
-    store
-        .set_storage_heal_paths(pending_paths.into_iter().collect())
-        .await?;
-=======
     info!(
         "Concluding storage healer, pending paths: {}",
         pending_paths.len()
     );
-    store.set_storage_heal_paths(pending_paths.into_iter().collect())?;
->>>>>>> b47d32200 (Add account range fetching metrics + fmt)
+    store
+        .set_storage_heal_paths(pending_paths.into_iter().collect())
+        .await?;
     Ok(healing_complete)
 }
 

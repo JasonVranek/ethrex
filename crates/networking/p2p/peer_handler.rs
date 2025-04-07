@@ -494,6 +494,7 @@ impl PeerHandler {
                     let storage_root = storage_roots.remove(0);
 
                     // The proof corresponds to the last slot, for the previous ones the slot must be the full range without edge proofs
+                    let call_verify_range = Instant::now();
                     if slots.is_empty() && !proof.is_empty() {
                         let Ok(sc) = verify_range(
                             storage_root,

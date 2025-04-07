@@ -226,12 +226,9 @@ async fn state_sync_segment(
                 update_bytecodes_storages_queue_time.elapsed().as_millis();
             let write_snapshot_time = Instant::now();
             // Update Snapshot
-<<<<<<< HEAD
             store
                 .write_snapshot_account_batch(account_hashes, accounts)
                 .await?;
-=======
-            store.write_snapshot_account_batch(account_hashes, accounts)?;
             let write_snapshot = write_snapshot_time.elapsed().as_millis();
             let full_time = full.elapsed().as_millis();
             StateSyncMetrics {
@@ -243,7 +240,6 @@ async fn state_sync_segment(
                 accounts_len,
             }
             .show();
->>>>>>> b47d32200 (Add account range fetching metrics + fmt)
             // As we are downloading the state trie in segments the `should_continue` flag will mean that there
             // are more accounts to be fetched but these accounts may belong to the next segment
             if !should_continue || start_account_hash >= STATE_TRIE_SEGMENTS_END[segment_number] {
