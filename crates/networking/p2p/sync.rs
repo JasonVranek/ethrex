@@ -446,8 +446,11 @@ impl Syncer {
             {
                 warn!("Invalid block body error {e}, discarding peer {peer_id}");
                 self.peers.remove_peer(peer_id).await;
+                warn!("BLOCK VALIDATION FAILED, RETRYING");
                 continue; // Retry
             }
+
+            info!("SUCCESSFULLY VALIDATED ALL BLOCKS");
         }
 
         let blocks_len = blocks.len();
