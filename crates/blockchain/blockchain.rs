@@ -42,6 +42,7 @@ pub struct Blockchain {
 pub struct BatchBlockProcessingFailure {
     pub last_valid_hash: H256,
     pub failed_block_hash: H256,
+    pub failed_block_number: BlockNumber,
 }
 
 impl Blockchain {
@@ -224,6 +225,7 @@ impl Blockchain {
                     Some(BatchBlockProcessingFailure {
                         last_valid_hash,
                         failed_block_hash: block.hash(),
+                        failed_block_number: block.header.number,
                     }),
                 ));
             }
@@ -235,6 +237,7 @@ impl Blockchain {
                         Some(BatchBlockProcessingFailure {
                             failed_block_hash: block.hash(),
                             last_valid_hash,
+                            failed_block_number: block.header.number,
                         }),
                     ));
                 };
@@ -257,6 +260,7 @@ impl Blockchain {
                         Some(BatchBlockProcessingFailure {
                             failed_block_hash: block.hash(),
                             last_valid_hash,
+                            failed_block_number: block.header.number,
                         }),
                     ))
                 }

@@ -484,22 +484,23 @@ impl Syncer {
         };
 
         if let Err((error, failure)) = res {
-            warn!("Failed to add block during FullSync: {error}");
             if let Some(BatchBlockProcessingFailure {
                 failed_block_hash,
                 last_valid_hash,
+                failed_block_number,
             }) = failure
             {
-                store
-                    .set_latest_valid_ancestor(failed_block_hash, last_valid_hash)
-                    .await?;
+                warn!("Failed to add block during FullSync: {error} (Block Number: {failed_block_number})");
+                // store
+                //     .set_latest_valid_ancestor(failed_block_hash, last_valid_hash)
+                //     .await?;
 
-                // TODO(#2127): Just marking the failing ancestor and the sync head is enough
-                // to fix the Missing Ancestors hive test, we want to look at a more robust
-                // solution in the future if needed.
-                store
-                    .set_latest_valid_ancestor(sync_head, last_valid_hash)
-                    .await?;
+                // // TODO(#2127): Just marking the failing ancestor and the sync head is enough
+                // // to fix the Missing Ancestors hive test, we want to look at a more robust
+                // // solution in the future if needed.
+                // store
+                //     .set_latest_valid_ancestor(sync_head, last_valid_hash)
+                //     .await?;
             }
             // NOTE: Do we want to discard the peer if an execution or validation error happens?
 
@@ -545,6 +546,7 @@ impl Syncer {
                         Some(BatchBlockProcessingFailure {
                             last_valid_hash,
                             failed_block_hash: block.hash(),
+                            failed_block_number: block.header.number,
                         }),
                     )
                 })?;
