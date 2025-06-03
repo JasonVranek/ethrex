@@ -213,14 +213,12 @@ impl PeerHandler {
     pub async fn request_and_validate_block_bodies<'a>(
         &self,
         block_hashes: &mut Vec<H256>,
-        headers_iter: &mut impl Iterator<Item = &BlockHeader>,
+        headers: &mut Vec<BlockHeader>,
     ) -> Option<Vec<Block>> {
         let original_hashes = block_hashes.clone();
-        let headers_vec: Vec<&BlockHeader> = headers_iter.collect();
 
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             *block_hashes = original_hashes.clone();
-            let mut headers_iter = headers_vec.iter().copied();
 
             let Some((block_bodies, peer_id)) =
                 self.request_block_bodies_inner(block_hashes.clone()).await
@@ -233,7 +231,7 @@ impl PeerHandler {
 
             // Push blocks
             for (_, body) in block_hashes.drain(..block_bodies_len).zip(block_bodies) {
-                let Some(header) = headers_iter.next() else {
+                let Some(header) = headers.iter_mut().next() else {
                     debug!("[SYNCING] Header not found for the block bodies received, skipping...");
                     break; // Break out of block creation and retry with different peer
                 };
