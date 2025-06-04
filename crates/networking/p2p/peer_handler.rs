@@ -225,7 +225,7 @@ impl PeerHandler {
             else {
                 continue; // Retry on empty response
             };
-            for (head, hash) in  headers.iter().zip(block_hashes.iter()) {
+            for (head, hash) in headers.iter().zip(block_hashes.iter()) {
                 if hash != &head.hash() {
                     warn!("Mismatched header")
                 }
@@ -235,17 +235,8 @@ impl PeerHandler {
             let block_bodies_len = block_bodies.len();
 
             // Push blocks
-            for (hash, body) in block_hashes.drain(..block_bodies_len).zip(block_bodies) {
-                let Some(header) = headers.iter_mut().next() else {
-                    debug!("[SYNCING] Header not found for the block bodies received, skipping...");
-                    break; // Break out of block creation and retry with different peer
-                };
-
-                if header.hash() != hash {
-                    warn!("Block hash Header Mismatch");
-                }
-
-                let block = Block::new(header.clone(), body);
+            for (header, body) in headers.drain(..block_bodies_len).zip(block_bodies) {
+                let block = Block::new(header, body);
                 blocks.push(block);
             }
 
