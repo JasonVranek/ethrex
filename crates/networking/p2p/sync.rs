@@ -264,7 +264,7 @@ impl Syncer {
                 && first_block_header.hash() == search_head
                 && search_head != sync_head
             {
-                // There is no path to the sync head this goes back until it find a common ancerstor
+                // There is no path to the sync head this goes back until it find a common ancestor
                 warn!("Sync failed to find target block header, going back to the previous parent");
                 search_head = first_block_header.parent_hash;
                 continue;
@@ -290,7 +290,7 @@ impl Syncer {
             let mut sync_head_found = false;
             if let Some(index) = block_hashes.iter().position(|&hash| hash == sync_head) {
                 sync_head_found = true;
-                block_hashes = block_hashes.iter().take(index + 1).cloned().collect();
+                block_hashes = block_hashes.into_iter().take(index + 1).collect();
             }
 
             // Update current fetch head if needed
