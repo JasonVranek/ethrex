@@ -362,11 +362,6 @@ impl Syncer {
                     let last_block = block_batch.last().cloned().unwrap();
                     let first_block = block_batch.first().cloned().unwrap();
                     let blocks_len = block_batch.len();
-                    // // This step is necessary for full sync because some opcodes depend on previous blocks during execution.
-                    // store
-                    // .add_block_headers(block_hashes.clone(), block_headers.clone())
-                    // .await?;
-                    // Executing blocks is a CPU heavy operation
                     // Spawn a blocking task to not block the tokio runtime
                     // If we found the sync head, run the blocks sequentially to store all the blocks's state
                     if let Err((err, batch_failure)) =
