@@ -388,6 +388,7 @@ impl Syncer {
                     store
                         .update_latest_block_number(last_block.header.number)
                         .await?;
+                    store.set_canonical_block(last_block.header.number, last_block.hash()).await?;
 
                     let elapsed_secs: f64 = since.elapsed().as_millis() as f64 / 1000.0;
                     let blocks_per_second = blocks_len as f64 / elapsed_secs;
