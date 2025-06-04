@@ -225,6 +225,7 @@ impl PeerHandler {
             else {
                 continue; // Retry on empty response
             };
+            dbg!(&block_hashes, &block_bodies);
 
             let mut blocks: Vec<Block> = vec![];
             let block_bodies_len = block_bodies.len();
