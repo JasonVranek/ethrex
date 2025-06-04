@@ -340,7 +340,10 @@ impl Syncer {
                     break;
                 }
                 // Download block bodies
-                info!("Requesting Block Bodies, available headers: {}", current_headers.len());
+                info!(
+                    "Requesting Block Bodies, available headers: {}",
+                    current_headers.len()
+                );
                 let mut current_hashes = current_headers.iter().map(|h| h.hash()).collect();
                 let blocks = peers
                     .request_and_validate_block_bodies(&mut current_hashes, &mut current_headers)
@@ -352,66 +355,80 @@ impl Syncer {
 
             info!("Block batch ready to execute/store");
             dbg!(current_blocks.len(), current_headers.len(), sync_head_found);
-            while current_blocks.len() >= EXECUTE_BLOCK_BATCH || (current_blocks.len() > 0 && sync_head_found) {
-            // Now that we have a full batch, we will either
-            // - Full Sync: Execute & store them
-            // - Snap Sync: Store them & Fetch their Receipts (TODO)
-            info!("Executinh Batch");
-            let block_batch: Vec<Block> = current_blocks.drain(..EXECUTE_BLOCK_BATCH).collect();
-            match sync_mode {
-                SyncMode::Full => {
-                    // Copy some values for later
-                    let last_block = block_batch.last().cloned().unwrap();
-                    let first_block = block_batch.first().cloned().unwrap();
-                    let blocks_len = block_batch.len();
-                    // Spawn a blocking task to not block the tokio runtime
-                    // If we found the sync head, run the blocks sequentially to store all the blocks's state
-                    if let Err((err, batch_failure)) =
-                        Self::add_blocks(blockchain.clone(), block_batch, sync_head_found).await
-                    {
-                        if let Some(batch_failure) = batch_failure {
-                            warn!("Failed to add block during FullSync: {err}");
-                            store
-                                .set_latest_valid_ancestor(
-                                    batch_failure.failed_block_hash,
-                                    batch_failure.last_valid_hash,
-                                )
-                                .await?;
-                            // TODO(#2127): Just marking the failing ancestor and the sync head is enough
-                            // to fix the Missing Ancestors hive test, we want to look at a more robust
-                            // solution in the future if needed.
-                            store
-                                .set_latest_valid_ancestor(sync_head, batch_failure.last_valid_hash)
-                                .await?;
+            while current_blocks.len() >= EXECUTE_BLOCK_BATCH
+                || (current_blocks.len() > 0 && sync_head_found)
+            {
+                // Now that we have a full batch, we will either
+                // - Full Sync: Execute & store them
+                // - Snap Sync: Store them & Fetch their Receipts (TODO)
+                info!("Executinh Batch");
+                let block_batch: Vec<Block> = current_blocks.drain(..EXECUTE_BLOCK_BATCH).collect();
+                match sync_mode {
+                    SyncMode::Full => {
+                        // Copy some values for later
+                        let blocks_len = block_batch.len();
+                        let hashes_and_numbers = block_batch
+                            .iter()
+                            .map(|b| (b.header.number, b.hash()))
+                            .collect::<Vec<_>>();
+                        let (last_block_number, last_block_hash) =
+                            hashes_and_numbers.last().cloned().unwrap();
+                        let (first_block_number, first_block_hash) =
+                            hashes_and_numbers.first().cloned().unwrap();
+                        // Spawn a blocking task to not block the tokio runtime
+                        // If we found the sync head, run the blocks sequentially to store all the blocks's state
+                        if let Err((err, batch_failure)) =
+                            Self::add_blocks(blockchain.clone(), block_batch, sync_head_found).await
+                        {
+                            dbg!("Added blocks: Oh no!");
+                            if let Some(batch_failure) = batch_failure {
+                                warn!("Failed to add block during FullSync: {err}");
+                                store
+                                    .set_latest_valid_ancestor(
+                                        batch_failure.failed_block_hash,
+                                        batch_failure.last_valid_hash,
+                                    )
+                                    .await?;
+                                // TODO(#2127): Just marking the failing ancestor and the sync head is enough
+                                // to fix the Missing Ancestors hive test, we want to look at a more robust
+                                // solution in the future if needed.
+                                store
+                                    .set_latest_valid_ancestor(
+                                        sync_head,
+                                        batch_failure.last_valid_hash,
+                                    )
+                                    .await?;
+                            }
+                            return Err(err.into());
                         }
-                        return Err(err.into());
-                    }
+                        dbg!("Added blocks");
 
-                    store
-                        .update_latest_block_number(last_block.header.number)
-                        .await?;
-                    store.set_canonical_block(last_block.header.number, last_block.hash()).await?;
+                        store.update_latest_block_number(last_block_number).await?;
+                        // TODO: add method for this
+                        for (number, hash) in hashes_and_numbers {
+                            store.set_canonical_block(number, hash).await?;
+                        }
 
-                    let elapsed_secs: f64 = since.elapsed().as_millis() as f64 / 1000.0;
-                    let blocks_per_second = blocks_len as f64 / elapsed_secs;
+                        let elapsed_secs: f64 = since.elapsed().as_millis() as f64 / 1000.0;
+                        let blocks_per_second = blocks_len as f64 / elapsed_secs;
 
-                    info!(
+                        info!(
                         "[SYNCING] Requested, stored, and executed {} blocks in {:.3} seconds.\n\
             Started at block with hash {} (number {}).\n\
             Finished at block with hash {} (number {}).\n\
             Blocks per second: {:.3}",
                         blocks_len,
                         elapsed_secs,
-                        first_block.hash(),
-                        first_block.header.number,
-                        last_block.hash(),
-                        last_block.header.number,
+                        first_block_hash,
+                        first_block_number,
+                        last_block_hash,
+                        last_block_number,
                         blocks_per_second
                     );
+                    }
+                    SyncMode::Snap => store.add_blocks(block_batch).await?,
                 }
-                SyncMode::Snap => store.add_blocks(block_batch).await?,
             }
-        }
 
             if sync_head_found {
                 break;
