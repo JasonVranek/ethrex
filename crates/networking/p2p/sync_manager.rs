@@ -77,6 +77,8 @@ impl SyncManager {
 
     /// Sets the latest fcu head and starts the next sync cycle if the syncer is currently inactive
     pub fn sync_to_head(&self, fcu_head: H256) {
+        // Wait for peers to process the FCU before updating the syncer so we don't fail to find the sync_head
+        tokio::time::sleep(Duration::from_secs(1));
         self.set_head(fcu_head);
         if !self.is_active() {
             self.start_sync();
