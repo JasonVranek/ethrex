@@ -339,8 +339,7 @@ impl Syncer {
                     break;
                 }
                 // Download block bodies
-                debug!("Requesting Block Bodies");
-                dbg!(current_headers.len());
+                info!("Requesting Block Bodies, available headers: {}", current_headers.len());
                 let mut current_hashes = current_headers.iter().map(|h| h.hash()).collect();
                 let blocks = peers
                     .request_and_validate_block_bodies(&mut current_hashes, &mut current_headers)
@@ -349,6 +348,7 @@ impl Syncer {
                 current_blocks.extend(blocks);
             }
 
+            info!("Block batch ready to execute/store");
             // Now that we have a full batch, we will either
             // - Full Sync: Execute & store them
             // - Snap Sync: Store them & Fetch their Receipts (TODO)
