@@ -340,6 +340,7 @@ impl Syncer {
                 }
                 // Download block bodies
                 debug!("Requesting Block Bodies");
+                dbg!(current_headers.len());
                 let mut current_hashes = current_headers.iter().map(|h| h.hash()).collect();
                 let blocks = peers
                     .request_and_validate_block_bodies(&mut current_hashes, &mut current_headers)
