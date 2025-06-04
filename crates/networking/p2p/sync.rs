@@ -346,6 +346,7 @@ impl Syncer {
                     .request_and_validate_block_bodies(&mut current_hashes, &mut current_headers)
                     .await
                     .ok_or(SyncError::BodiesNotFound)?;
+                dbg!("Obtained: {} blocks", blocks.len());
                 current_blocks.extend(blocks);
             }
 
