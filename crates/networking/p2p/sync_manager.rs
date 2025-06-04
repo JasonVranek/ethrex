@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Instant,
 };
 
 use ethrex_blockchain::Blockchain;
@@ -26,6 +29,8 @@ pub struct SyncManager {
     snap_enabled: Arc<AtomicBool>,
     syncer: Arc<Mutex<Syncer>>,
     last_fcu_head: Arc<Mutex<H256>>,
+    // Time since last fcu update, if the head was updated very recently we will stall in order to give peers time to process it
+    last_fcu_update: Arc<Mutex<Instant>>,
     store: Store,
 }
 
@@ -48,6 +53,7 @@ impl SyncManager {
             snap_enabled,
             syncer,
             last_fcu_head: Arc::new(Mutex::new(H256::zero())),
+            last_fcu_update: Arc::new(Mutex::new(Instant::now())),
             store: store.clone(),
         };
         sync_manager.sync_to_head(H256::random());
@@ -70,6 +76,7 @@ impl SyncManager {
             snap_enabled: Arc::new(AtomicBool::new(false)),
             syncer: Arc::new(Mutex::new(Syncer::dummy())),
             last_fcu_head: Arc::new(Mutex::new(H256::zero())),
+            last_fcu_update: Arc::new(Mutex::new(Instant::now())),
             store: Store::new("temp.db", ethrex_storage::EngineType::InMemory)
                 .expect("Failed to create test DB"),
         }
@@ -77,10 +84,8 @@ impl SyncManager {
 
     /// Sets the latest fcu head and starts the next sync cycle if the syncer is currently inactive
     pub fn sync_to_head(&self, fcu_head: H256) {
-        // Wait for peers to process the FCU before updating the syncer so we don't fail to find the sync_head
-        tokio::time::sleep(Duration::from_secs(1));
         self.set_head(fcu_head);
-        if !self.is_active() {
+        if self.is_active() {
             self.start_sync();
         }
     }
@@ -96,8 +101,12 @@ impl SyncManager {
 
     /// Updates the last fcu head. This may be used on the next sync cycle if needed
     fn set_head(&self, fcu_head: H256) {
-        if let Ok(mut latest_fcu_head) = self.last_fcu_head.try_lock() {
+        if let (Ok(mut latest_fcu_head), Ok(mut latest_fcu_update)) = (
+            self.last_fcu_head.try_lock(),
+            self.last_fcu_update.try_lock(),
+        ) {
             *latest_fcu_head = fcu_head;
+            *latest_fcu_update = Instant::now();
         } else {
             warn!("Failed to update latest fcu head for syncing")
         }
@@ -129,6 +138,15 @@ impl SyncManager {
             loop {
                 let sync_head = {
                     // Read latest fcu head without holding the lock for longer than needed
+                    let Ok(last_fcu_update) = last_fcu_update.try_lock() else {
+                        error!("Failed to read latest fcu head, unable to sync");
+                        return;
+                    };
+                    // If the last fcu update was very recent, stall a bit so peers can process it
+                    // Otherwise our syncer won't be able to find the target block
+                    if last_fcu_update.elapsed().as_secs() < 1 {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
                     let Ok(sync_head) = sync_head.try_lock() else {
                         error!("Failed to read latest fcu head, unable to sync");
                         return;
