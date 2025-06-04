@@ -327,14 +327,15 @@ impl Syncer {
             // Add block_headers to our current block_headers
             current_headers.extend(block_headers);
 
+
             // If we don't have enough headers to process a batch of blocks, fetch more
-            if current_headers.len() < EXECUTE_BLOCK_BATCH {
+            if current_headers.len() < EXECUTE_BLOCK_BATCH && !sync_head_found {
                 // Fetch more headers
                 continue;
             }
 
             // If we don't have enough full blocks to process a batch of blocks, fetch more
-            while current_blocks.len() < EXECUTE_BLOCK_BATCH {
+            while current_blocks.len() < EXECUTE_BLOCK_BATCH && !current_headers.is_empty() {
                 if cancel_token.is_cancelled() {
                     break;
                 }
@@ -349,6 +350,7 @@ impl Syncer {
             }
 
             info!("Block batch ready to execute/store");
+            while current_blocks.len() > EXECUTE_BLOCK_BATCH || (current_blocks.len() > 0 && sync_head_found) {
             // Now that we have a full batch, we will either
             // - Full Sync: Execute & store them
             // - Snap Sync: Store them & Fetch their Receipts (TODO)
@@ -410,6 +412,7 @@ impl Syncer {
                 }
                 SyncMode::Snap => store.add_blocks(block_batch).await?,
             }
+        }
 
             if sync_head_found {
                 break;
