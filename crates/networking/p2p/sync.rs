@@ -478,13 +478,13 @@ impl Syncer {
         store: Store,
     ) -> Result<Option<(H256, H256)>, SyncError> {
         // Fetch only the block header batch containing the sync_head
-        debug!("Requesting Block Headers from {sync_head}");
+        debug!("(Snap) Requesting Block Headers from {sync_head}");
         let Some(block_headers) = self
             .peers
             .request_block_headers(sync_head, BlockRequestOrder::NewToOld)
             .await
         else {
-            warn!("Sync failed to find target block header, aborting");
+            warn!("(Snap) Sync failed to find target block header, aborting");
             return Ok(None);
         };
 
@@ -493,7 +493,7 @@ impl Syncer {
 
         // Check that the peer response does contain our sync_head
         let Some(sync_head_index) = block_hashes.iter().position(|h| h == &sync_head) else {
-            warn!("Sync failed to find target block header, invalid response from peers");
+            warn!("(Snap) Sync failed to find target block header, invalid response from peers");
             return Ok(None);
         };
         // If the sync head is less than 64 blocks away from our current head switch to full-sync
