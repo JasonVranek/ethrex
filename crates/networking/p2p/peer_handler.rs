@@ -213,29 +213,26 @@ impl PeerHandler {
     pub async fn request_and_validate_block_bodies<'a>(
         &self,
         block_hashes: &mut Vec<H256>,
-        headers: &mut Vec<BlockHeader>,
+        block_headers: &mut Vec<BlockHeader>,
     ) -> Option<Vec<Block>> {
         let original_hashes = block_hashes.clone();
+        let original_headers = block_headers.clone();
 
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             *block_hashes = original_hashes.clone();
+            *block_headers = original_headers.clone();
 
             let Some((block_bodies, peer_id)) =
                 self.request_block_bodies_inner(block_hashes.clone()).await
             else {
                 continue; // Retry on empty response
             };
-            for (head, hash) in headers.iter().zip(block_hashes.iter()) {
-                if hash != &head.hash() {
-                    warn!("Mismatched header")
-                }
-            }
 
             let mut blocks: Vec<Block> = vec![];
             let block_bodies_len = block_bodies.len();
 
             // Push blocks
-            for (header, body) in headers.drain(..block_bodies_len).zip(block_bodies) {
+            for (header, body) in block_headers.drain(..block_bodies_len).zip(block_bodies) {
                 let block = Block::new(header, body);
                 blocks.push(block);
             }
