@@ -540,7 +540,7 @@ impl Syncer {
         );
 
         // Return the pivot's state_root and the block_hash of the block after the pivot
-        Ok(Some((pivot_header.state_root, block_hashes[pivot_idx + 1])))
+        Ok(Some((pivot_header.state_root, block_hashes[pivot_idx - 1])))
     }
 
     /// Execute the next block after a succesful snap sync cycle, set it as canonical & change sync_mode to full
