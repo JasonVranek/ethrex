@@ -144,8 +144,8 @@ impl SyncManager {
                     };
                     // If the last fcu update was very recent, stall a bit so peers can process it
                     // Otherwise our syncer won't be able to find the target block
-                    if last_fcu_update.elapsed().as_secs() < 1 {
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    if last_fcu_update.elapsed().as_secs() < 4 {
+                        tokio::time::sleep(Duration::from_secs(4)).await;
                     }
                     let Ok(sync_head) = sync_head.try_lock() else {
                         error!("Failed to read latest fcu head, unable to sync");
