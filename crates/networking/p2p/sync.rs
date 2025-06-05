@@ -531,7 +531,7 @@ impl Syncer {
         // - Fetch each block's body and its receipt via eth p2p requests
         // - Fetch the pivot block's state via snap p2p requests
         // - Execute blocks after the pivot (like in full-sync)
-        let pivot_idx = block_hashes.len().saturating_sub(MIN_FULL_BLOCKS);
+        let pivot_idx = min(MIN_FULL_BLOCKS, block_hashes.len().saturating_sub(1));
         let pivot_header = &block_headers[pivot_idx];
 
         info!(
