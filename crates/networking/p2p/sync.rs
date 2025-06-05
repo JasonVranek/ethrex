@@ -18,11 +18,10 @@ use ethrex_trie::{Nibbles, Node, TrieDB, TrieError};
 use state_healing::heal_state_trie;
 use state_sync::state_sync;
 use std::{
-    array,
-    sync::{
+    array, cmp::min, sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-    },
+    }
 };
 use storage_healing::storage_healer;
 use tokio::{
@@ -354,15 +353,15 @@ impl Syncer {
             }
 
             info!("Block batch ready to execute/store");
-            dbg!(current_blocks.len(), current_headers.len(), sync_head_found);
             while current_blocks.len() >= EXECUTE_BLOCK_BATCH
                 || (current_blocks.len() > 0 && sync_head_found)
             {
                 // Now that we have a full batch, we will either
                 // - Full Sync: Execute & store them
                 // - Snap Sync: Store them & Fetch their Receipts (TODO)
-                info!("Executinh Batch");
-                let block_batch: Vec<Block> = current_blocks.drain(..EXECUTE_BLOCK_BATCH).collect();
+                let block_batch: Vec<Block> = current_blocks
+                    .drain(..min(EXECUTE_BLOCK_BATCH, current_blocks.len()))
+                    .collect();
                 match sync_mode {
                     SyncMode::Full => {
                         // Copy some values for later
