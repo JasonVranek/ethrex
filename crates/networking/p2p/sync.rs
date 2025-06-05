@@ -534,7 +534,7 @@ impl Syncer {
         let pivot_idx = block_hashes.len().saturating_sub(MIN_FULL_BLOCKS);
         let pivot_header = &block_headers[pivot_idx];
 
-        debug!(
+        info!(
             "Selected block {} as pivot for snap sync",
             pivot_header.number
         );
