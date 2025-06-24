@@ -32,7 +32,7 @@ pub(crate) const REBUILDER_INCOMPLETE_STORAGE_ROOT: H256 = H256::zero();
 /// Max storages to rebuild in parallel
 const MAX_PARALLEL_REBUILDS: usize = 15;
 
-const MAX_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 10;
+const MAX_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 5;
 
 /// Represents the permanently ongoing background trie rebuild process
 /// This process will be started whenever a state sync is initiated and will be
@@ -314,7 +314,7 @@ async fn rebuild_storage_trie(
         }
     }
     if expected_root != REBUILDER_INCOMPLETE_STORAGE_ROOT && storage_trie.hash()? != expected_root {
-        warn!("Mismatched storage root for account {account_hash}");
+        warn!("Mismatched storage root for account {account_hash}, expected: {expected_root}, got: {}",storage_trie.hash_no_commit());
         store
             .set_storage_heal_paths(vec![(account_hash, vec![Nibbles::default()])])
             .await?;
