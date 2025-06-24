@@ -12,8 +12,10 @@ mod verify_range;
 use ethereum_types::H256;
 use ethrex_rlp::constants::RLP_NULL;
 use sha3::{Digest, Keccak256};
+use tracing::info;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 pub use self::db::{InMemoryTrieDB, TrieDB};
 pub use self::logger::{TrieLogger, TrieWitness};
@@ -142,8 +144,12 @@ impl Trie {
     /// Returns keccak(RLP_NULL) if the trie is empty
     /// Also commits changes to the DB
     pub fn hash(&mut self) -> Result<H256, TrieError> {
-        self.commit()?;
-        Ok(self.hash_no_commit())
+        let start = Instant::now();
+        let (commit, put) = self.commit()?;
+        let hash_t = Instant::now();
+        let hash = self.hash_no_commit();
+        info!("Hashed trie in {}ms: commit: {}; put_batch: {}; hash: {}", start.elapsed().as_millis(), commit, put, hash_t.elapsed().as_millis());
+        Ok(hash)
     }
 
     /// Return the hash of the trie's root node.
@@ -171,14 +177,18 @@ impl Trie {
     ///
     /// This method will also compute the hash of all internal nodes indirectly. It will not clear
     /// the cached nodes.
-    pub fn commit(&mut self) -> Result<(), TrieError> {
+    pub fn commit(&mut self) -> Result<(u128, u128), TrieError> {
         if self.root.is_valid() {
+            let start = Instant::now();
             let mut acc = Vec::new();
             self.root.commit(&mut acc);
+            let commit = start.elapsed().as_millis();
+            let start = Instant::now();
             self.db.put_batch(acc)?; // we'll try to avoid calling this for every commit
+            return Ok((commit, start.elapsed().as_millis()));
         }
 
-        Ok(())
+        Ok((0, 0))
     }
 
     /// Computes the nodes that would be added if updating the trie.
