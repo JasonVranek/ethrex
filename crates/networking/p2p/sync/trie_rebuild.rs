@@ -292,9 +292,11 @@ async fn rebuild_storage_trie(
     let mut snapshot_reads_since_last_commit = 0;
     let mut i_t = 0;
     let mut h_t = 0;
+    let mut len = 0;
     loop {
         snapshot_reads_since_last_commit += 1;
         let batch = store.read_storage_snapshot(account_hash, start).await?;
+        len += batch.len();
         let unfilled_batch = batch.len() < MAX_SNAPSHOT_READS;
         // Update start
         if let Some(last) = batch.last() {
@@ -311,7 +313,6 @@ async fn rebuild_storage_trie(
             snapshot_reads_since_last_commit = 0;
             storage_trie.hash()?;
             h_t += h_s.elapsed().as_millis();
-
         }
 
         // Return if we have no more snapshot values to process for this storage
@@ -323,12 +324,21 @@ async fn rebuild_storage_trie(
     let hash = storage_trie.hash()?;
     h_t += h_s.elapsed().as_millis();
     if expected_root != REBUILDER_INCOMPLETE_STORAGE_ROOT && hash != expected_root {
-        warn!("Mismatched storage root for account {account_hash}, expected: {expected_root}, got: {}",storage_trie.hash_no_commit());
+        warn!(
+            "Mismatched storage root for account {account_hash}, expected: {expected_root}, got: {}",
+            storage_trie.hash_no_commit()
+        );
         store
             .set_storage_heal_paths(vec![(account_hash, vec![Nibbles::default()])])
             .await?;
     }
-    info!("Finished rebuilding storage in {}, {} spent inserting, {} spent hashing", s_t.elapsed().as_millis(), i_t, h_t);
+    info!(
+        "Finished rebuilding storage of size {} in {}, {} spent inserting, {} spent hashing",
+        len,
+        s_t.elapsed().as_millis(),
+        i_t,
+        h_t
+    );
     Ok(())
 }
 
