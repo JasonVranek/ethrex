@@ -32,7 +32,7 @@ pub(crate) const REBUILDER_INCOMPLETE_STORAGE_ROOT: H256 = H256::zero();
 /// Max storages to rebuild in parallel
 const MAX_PARALLEL_REBUILDS: usize = 15;
 
-const MAX_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 5;
+const MAX_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 10;
 
 /// Represents the permanently ongoing background trie rebuild process
 /// This process will be started whenever a state sync is initiated and will be
@@ -286,6 +286,7 @@ async fn rebuild_storage_trie(
     expected_root: H256,
     store: Store,
 ) -> Result<(), SyncError> {
+    let s_t = Instant::now();
     let mut start = H256::zero();
     let mut storage_trie = store.open_storage_trie(account_hash, *EMPTY_TRIE_HASH)?;
     let mut snapshot_reads_since_last_commit = 0;
@@ -318,6 +319,7 @@ async fn rebuild_storage_trie(
             .set_storage_heal_paths(vec![(account_hash, vec![Nibbles::default()])])
             .await?;
     }
+    info!("Finished rebuilding storage in {}", s_t.elapsed().as_millis());
     Ok(())
 }
 
