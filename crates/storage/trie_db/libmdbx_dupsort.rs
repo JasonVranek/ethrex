@@ -46,10 +46,7 @@ where
     }
 
     fn put_batch(&self, key_values: Vec<(NodeHash, Vec<u8>)>) -> Result<(), TrieError> {
-        let s = Instant::now();
         let txn = self.db.begin_readwrite().map_err(TrieError::DbError)?;
-        let txn_create = s.elapsed().as_millis();
-        let total_upserts = key_values.len();
         for (key, value) in key_values {
             txn.upsert::<T>(
                 (self.fixed_key.clone(), node_hash_to_fixed_size(key)),
@@ -57,14 +54,7 @@ where
             )
             .map_err(TrieError::DbError)?;
         }
-        let data_upsert = s.elapsed().as_millis() - txn_create;
-        txn.commit().map_err(TrieError::DbError)?;
-        let total = s.elapsed().as_millis();
-        let txn_commit = total - txn_create - data_upsert;
-        info!(
-            "[libmdbx dupsort] put_batch: {total}ms: txn_create: {txn_create}ms; upserts: {total_upserts} in {data_upsert}ms; txn_commit: {txn_commit}ms"
-        );
-        Ok(())
+        txn.commit().map_err(TrieError::DbError)
     }
 }
 
