@@ -12,10 +12,10 @@ mod verify_range;
 use ethereum_types::H256;
 use ethrex_rlp::constants::RLP_NULL;
 use sha3::{Digest, Keccak256};
-use tracing::info;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tracing::info;
 
 pub use self::db::{InMemoryTrieDB, TrieDB};
 pub use self::logger::{TrieLogger, TrieWitness};
@@ -144,12 +144,26 @@ impl Trie {
     /// Returns keccak(RLP_NULL) if the trie is empty
     /// Also commits changes to the DB
     pub fn hash(&mut self) -> Result<H256, TrieError> {
+        self.commit()?;
+        Ok(self.hash_no_commit())
+    }
+
+    /// Return the hash of the trie's root node.
+    /// Returns keccak(RLP_NULL) if the trie is empty
+    /// Also commits changes to the DB
+    pub fn hash_loud(&mut self) -> Result<(H256, String), TrieError> {
         let start = Instant::now();
         let (commit, put) = self.commit()?;
         let hash_t = Instant::now();
         let hash = self.hash_no_commit();
-        info!("Hashed trie in {}ms: commit: {}; put_batch: {}; hash: {}", start.elapsed().as_millis(), commit, put, hash_t.elapsed().as_millis());
-        Ok(hash)
+        let rep = format!(
+            "Hashed trie in {}ms: commit: {}; put_batch: {}; hash: {}",
+            start.elapsed().as_millis(),
+            commit,
+            put,
+            hash_t.elapsed().as_millis()
+        );
+        Ok((hash, rep))
     }
 
     /// Return the hash of the trie's root node.

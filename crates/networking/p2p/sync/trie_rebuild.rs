@@ -293,6 +293,7 @@ async fn rebuild_storage_trie(
     let mut i_t = 0;
     let mut h_t = 0;
     let mut len = 0;
+    let mut hash_reports = Vec::new();
     loop {
         snapshot_reads_since_last_commit += 1;
         let batch = store.read_storage_snapshot(account_hash, start).await?;
@@ -311,7 +312,8 @@ async fn rebuild_storage_trie(
         if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
             let h_s = Instant::now();
             snapshot_reads_since_last_commit = 0;
-            storage_trie.hash()?;
+            let (_, rep) = storage_trie.hash_loud()?;
+            hash_reports.push(rep);
             h_t += h_s.elapsed().as_millis();
         }
 
@@ -321,7 +323,8 @@ async fn rebuild_storage_trie(
         }
     }
     let h_s = Instant::now();
-    let hash = storage_trie.hash()?;
+    let (hash, rep) = storage_trie.hash_loud()?;
+    hash_reports.push(rep);
     h_t += h_s.elapsed().as_millis();
     if expected_root != REBUILDER_INCOMPLETE_STORAGE_ROOT && hash != expected_root {
         warn!(
@@ -333,11 +336,12 @@ async fn rebuild_storage_trie(
             .await?;
     }
     info!(
-        "Finished rebuilding storage of size {} in {}, {} spent inserting, {} spent hashing",
+        "Finished rebuilding storage of size {} in {}, {} spent inserting, {} spent hashing. Reports: {:?}",
         len,
         s_t.elapsed().as_millis(),
         i_t,
-        h_t
+        h_t,
+        hash_reports
     );
     Ok(())
 }
