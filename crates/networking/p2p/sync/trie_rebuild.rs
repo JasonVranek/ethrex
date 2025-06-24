@@ -290,6 +290,8 @@ async fn rebuild_storage_trie(
     let mut start = H256::zero();
     let mut storage_trie = store.open_storage_trie(account_hash, *EMPTY_TRIE_HASH)?;
     let mut snapshot_reads_since_last_commit = 0;
+    let mut i_t = 0;
+    let mut h_t = 0;
     loop {
         snapshot_reads_since_last_commit += 1;
         let batch = store.read_storage_snapshot(account_hash, start).await?;
@@ -298,13 +300,18 @@ async fn rebuild_storage_trie(
         if let Some(last) = batch.last() {
             start = next_hash(last.0);
         }
+        let i_s = Instant::now();
         // Process batch
         for (key, val) in batch {
             storage_trie.insert(key.0.to_vec(), val.encode_to_vec())?;
         }
+        i_t += i_s.elapsed().as_millis();
         if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
+            let h_s = Instant::now();
             snapshot_reads_since_last_commit = 0;
             storage_trie.hash()?;
+            h_t += h_s.elapsed().as_millis();
+
         }
 
         // Return if we have no more snapshot values to process for this storage
@@ -312,13 +319,16 @@ async fn rebuild_storage_trie(
             break;
         }
     }
-    if expected_root != REBUILDER_INCOMPLETE_STORAGE_ROOT && storage_trie.hash()? != expected_root {
+    let h_s = Instant::now();
+    let hash = storage_trie.hash()?;
+    h_t += h_s.elapsed().as_millis();
+    if expected_root != REBUILDER_INCOMPLETE_STORAGE_ROOT && hash != expected_root {
         warn!("Mismatched storage root for account {account_hash}, expected: {expected_root}, got: {}",storage_trie.hash_no_commit());
         store
             .set_storage_heal_paths(vec![(account_hash, vec![Nibbles::default()])])
             .await?;
     }
-    info!("Finished rebuilding storage in {}", s_t.elapsed().as_millis());
+    info!("Finished rebuilding storage in {}, {} spent inserting, {} spent hashing", s_t.elapsed().as_millis(), i_t, h_t);
     Ok(())
 }
 
