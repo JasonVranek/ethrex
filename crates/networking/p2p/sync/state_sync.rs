@@ -201,7 +201,7 @@ async fn state_sync_segment(
             break;
         }
     }
-    debug!(
+    info!(
         "[Segment {segment_number}]: Account Trie Fetching ended, signaling storage & bytecode fetcher process"
     );
     // Update sync progress (this task is not vital so we can detach it)
