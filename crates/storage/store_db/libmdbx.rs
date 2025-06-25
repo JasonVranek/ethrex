@@ -102,7 +102,10 @@ impl Store {
             txn.commit().map_err(StoreError::LibmdbxError)?;
             let commit = start.elapsed().as_millis() - create_txn - upsert;
             info!("[write snap account batch] commit: {commit}ms");
-            info!("[write snap account batch] full: {}ms", start.elapsed().as_millis());
+            info!(
+                "[write snap account batch] full: {}ms",
+                start.elapsed().as_millis()
+            );
             Ok(())
         })
         .await
