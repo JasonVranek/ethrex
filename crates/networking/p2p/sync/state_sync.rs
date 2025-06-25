@@ -190,6 +190,7 @@ async fn state_sync_segment(
             store
                 .write_snapshot_account_batch(account_hashes, accounts)
                 .await?;
+            info!("Snapshot Updated");
             // As we are downloading the state trie in segments the `should_continue` flag will mean that there
             // are more accounts to be fetched but these accounts may belong to the next segment
             if !should_continue || start_account_hash >= STATE_TRIE_SEGMENTS_END[segment_number] {
@@ -197,6 +198,7 @@ async fn state_sync_segment(
                 break;
             }
         } else {
+            info!("Stale pivot");
             stale = true;
             break;
         }
