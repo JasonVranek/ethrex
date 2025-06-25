@@ -80,6 +80,35 @@ impl Store {
         .map_err(|e| StoreError::Custom(format!("task panicked: {e}")))?
     }
 
+    // Helper method to write into a libmdbx table in batch
+    async fn write_batch_loud<T: Table>(
+        &self,
+        key_values: Vec<(T::Key, T::Value)>,
+    ) -> Result<(), StoreError> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            let txn = db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
+            let create_txn = start.elapsed().as_millis();
+            info!("[write snap account batch] create_txn: {create_txn}ms");
+            let mut cursor = txn.cursor::<T>().map_err(StoreError::LibmdbxError)?;
+            for (key, value) in key_values {
+                cursor
+                    .upsert(key, value)
+                    .map_err(StoreError::LibmdbxError)?;
+            }
+            let upsert = start.elapsed().as_millis() - create_txn;
+            info!("[write snap account batch] upsert: {upsert}ms");
+            txn.commit().map_err(StoreError::LibmdbxError)?;
+            let commit = start.elapsed().as_millis() - create_txn - upsert;
+            info!("[write snap account batch] commit: {commit}ms");
+            info!("[write snap account batch] full: {}ms", start.elapsed().as_millis());
+            Ok(())
+        })
+        .await
+        .map_err(|e| StoreError::Custom(format!("task panicked: {e}")))?
+    }
+
     // Helper method to read from a libmdbx table
     async fn read<T: Table>(&self, key: T::Key) -> Result<Option<T::Value>, StoreError> {
         let db = self.db.clone();
@@ -932,7 +961,7 @@ impl StoreEngine for Store {
         account_hashes: Vec<H256>,
         account_states: Vec<AccountState>,
     ) -> Result<(), StoreError> {
-        self.write_batch::<StateSnapShot>(
+        self.write_batch_loud::<StateSnapShot>(
             account_hashes
                 .into_iter()
                 .map(|h| h.into())
