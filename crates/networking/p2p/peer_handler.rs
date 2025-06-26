@@ -74,6 +74,7 @@ impl PeerHandler {
     /// We make this distinction for snap requests as the data we request might have become stale
     /// So we cannot know whether a peer returning an empty response is a failure until another peer returns the requested data
     async fn record_snap_peer_success(&self, succesful_peer_id: H256, mut peer_ids: HashSet<H256>) {
+        info!("[record snap peer success] succesful peer: {succesful_peer_id}, peers: {peer_ids:?}");
         // Reward succesful peer
         self.record_peer_success(succesful_peer_id).await;
         // Penalize previous peers that returned empty/invalid responses
