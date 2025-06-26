@@ -111,7 +111,7 @@ impl Trie {
             // If the trie is not empty, call the root node's insertion logic.
             self.root
                 .get_node(self.db.as_ref())?
-                .ok_or(TrieError::InconsistentTree)?
+                .unwrap()
                 .insert(self.db.as_ref(), path, value)?
                 .into()
         } else {
