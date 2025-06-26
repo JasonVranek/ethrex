@@ -8,7 +8,7 @@ use rand::random;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, mpsc};
-use tracing::debug;
+use tracing::{debug, info};
 
 pub const MAX_NODES_PER_BUCKET: usize = 16;
 const NUMBER_OF_BUCKETS: usize = 256;
@@ -459,7 +459,7 @@ impl PeerData {
     pub fn reward_peer(&mut self) {
         self.score += 1;
 
-        debug!(
+        info!(
             "[PEERS] Rewarding peer with node_id {:?}, new score: {}",
             self.node.node_id(),
             self.score,
@@ -474,7 +474,7 @@ impl PeerData {
             self.score -= 1;
         };
 
-        debug!(
+        info!(
             "[PEERS] Penalizing peer with node_id {:?}, new score: {}",
             self.node.node_id(),
             self.score,
