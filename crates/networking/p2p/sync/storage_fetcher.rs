@@ -11,7 +11,7 @@ use ethrex_common::H256;
 use ethrex_storage::Store;
 use ethrex_trie::Nibbles;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::{
     peer_handler::PeerHandler,
@@ -108,7 +108,7 @@ async fn fetch_storage_batch(
         .request_storage_ranges(state_root, batch_roots, batch_hahses, H256::zero())
         .await
     {
-        debug!("Received {} storage ranges", keys.len(),);
+        info!("Received {} storage ranges", keys.len(),);
         // Handle incomplete ranges
         if incomplete {
             // An incomplete range cannot be empty
@@ -124,7 +124,7 @@ async fn fetch_storage_batch(
                 // Store downloaded range
                 store
                     .write_snapshot_storage_batch(account_hash, last_keys, last_values)
-                    .await?;
+                    .await.unwrap();
                 // Delegate the rest of the trie to the large trie fetcher
                 large_storage_sender
                     .send(vec![LargeStorageRequest {
@@ -132,7 +132,7 @@ async fn fetch_storage_batch(
                         storage_root,
                         last_key,
                     }])
-                    .await?;
+                    .await.unwrap();
                 return Ok((batch, false));
             }
             // The incomplete range is not the first, we cannot asume it is a large trie, so lets add it back to the queue
@@ -142,9 +142,9 @@ async fn fetch_storage_batch(
         let account_hashes: Vec<H256> = filled_storages.iter().map(|(hash, _)| *hash).collect();
         store
             .write_snapshot_storage_batches(account_hashes, keys, values)
-            .await?;
+            .await.unwrap();
         // Send complete storages to the rebuilder
-        storage_trie_rebuilder_sender.send(filled_storages).await?;
+        storage_trie_rebuilder_sender.send(filled_storages).await.unwrap();
         // Return remaining code hashes in the batch if we couldn't fetch all of them
         return Ok((batch, false));
     }

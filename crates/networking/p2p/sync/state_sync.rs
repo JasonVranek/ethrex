@@ -181,9 +181,11 @@ async fn state_sync_segment(
             }
             // Send hash and root batch to the storage fetcher
             if !account_hashes_and_storage_roots.is_empty() {
-                storage_sender
+                if let Err(err) = storage_sender
                     .send(account_hashes_and_storage_roots)
-                    .await.unwrap();
+                    .await {
+                        info!("SEND ERROR when sending to storage fetcher: {}", err.to_string())
+                    }
             }
             // Update Snapshot
             store
