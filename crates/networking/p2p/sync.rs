@@ -49,7 +49,7 @@ const MAX_CHANNEL_MESSAGES: usize = 500;
 /// Maximum amount of messages to read from a channel at once
 const MAX_CHANNEL_READS: usize = 200;
 /// Pace at which progress is shown via info tracing
-const SHOW_PROGRESS_INTERVAL_DURATION: Duration = Duration::from_secs(30);
+const SHOW_PROGRESS_INTERVAL_DURATION: Duration = Duration::from_secs(5);
 
 lazy_static::lazy_static! {
     // Size of each state trie segment
