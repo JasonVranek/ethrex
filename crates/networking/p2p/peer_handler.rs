@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use bytes::Bytes;
 use ethrex_common::{
@@ -64,6 +68,22 @@ impl PeerHandler {
     pub fn dummy() -> PeerHandler {
         let dummy_peer_table = Arc::new(Mutex::new(KademliaTable::new(Default::default())));
         PeerHandler::new(dummy_peer_table)
+    }
+
+    /// Helper method to record a succesful peer response as well as record previous failed responses from other peers
+    /// We make this distinction for snap requests as the data we request might have become stale
+    /// So we cannot know whether a peer returning an empty response is a failure until another peer returns the requested data
+    async fn record_snap_peer_success(&self, succesful_peer_id: H256, mut peer_ids: HashSet<H256>) {
+        // Reward succesful peer
+        self.record_peer_success(succesful_peer_id).await;
+        // Penalize previous peers that returned empty/invalid responses
+        peer_ids.remove(&succesful_peer_id);
+        for peer_id in peer_ids {
+            info!(
+                "[SYNCING] Penalizing peer {peer_id} as it failed to return data cornfirmed as non-stale"
+            );
+            self.record_peer_failure(peer_id).await;
+        }
     }
 
     /// Helper method to record successful peer response
@@ -353,6 +373,9 @@ impl PeerHandler {
         start: H256,
         limit: H256,
     ) -> Option<(Vec<H256>, Vec<AccountState>, bool)> {
+        // Keep track of peers we requested from so we can penalize unresponsive peers when we get a response
+        // This is so we avoid penalizing peers due to requesting stale data
+        let mut peer_ids = HashSet::new();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             let request_id = rand::random();
             let request = RLPxMessage::GetAccountRange(GetAccountRange {
@@ -365,6 +388,7 @@ impl PeerHandler {
             let (peer_id, peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
+            peer_ids.insert(peer_id);
             let mut receiver = peer_channel.receiver.lock().await;
             if let Err(err) = peer_channel.sender.send(request).await {
                 debug!("Failed to send message to peer: {err}");
@@ -405,11 +429,8 @@ impl PeerHandler {
                     &encoded_accounts,
                     &proof,
                 ) {
-                    self.record_peer_success(peer_id).await;
+                    self.record_snap_peer_success(peer_id, peer_ids).await;
                     return Some((account_hashes, accounts, should_continue));
-                } else {
-                    warn!("[SYNCING] Received invalid account range, penalizing peer {peer_id}...");
-                    self.record_peer_critical_failure(peer_id).await;
                 }
             }
         }
@@ -479,6 +500,9 @@ impl PeerHandler {
         account_hashes: Vec<H256>,
         start: H256,
     ) -> Option<(Vec<Vec<H256>>, Vec<Vec<U256>>, bool)> {
+        // Keep track of peers we requested from so we can penalize unresponsive peers when we get a response
+        // This is so we avoid penalizing peers due to requesting stale data
+        let mut peer_ids = HashSet::new();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             let request_id = rand::random();
             let request = RLPxMessage::GetStorageRanges(GetStorageRanges {
@@ -492,6 +516,7 @@ impl PeerHandler {
             let (peer_id, peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
+            peer_ids.insert(peer_id);
             let mut receiver = peer_channel.receiver.lock().await;
             if let Err(err) = peer_channel.sender.send(request).await {
                 debug!("Failed to send message to peer: {err}");
@@ -564,7 +589,7 @@ impl PeerHandler {
                     storage_keys.push(hashed_keys);
                     storage_values.push(values);
                 }
-                self.record_peer_success(peer_id).await;
+                self.record_snap_peer_success(peer_id, peer_ids).await;
                 return Some((storage_keys, storage_values, should_continue));
             }
         }
@@ -581,6 +606,9 @@ impl PeerHandler {
         paths: Vec<Nibbles>,
     ) -> Option<Vec<Node>> {
         let expected_nodes = paths.len();
+        // Keep track of peers we requested from so we can penalize unresponsive peers when we get a response
+        // This is so we avoid penalizing peers due to requesting stale data
+        let mut peer_ids = HashSet::new();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             let request_id = rand::random();
             let request = RLPxMessage::GetTrieNodes(GetTrieNodes {
@@ -596,6 +624,7 @@ impl PeerHandler {
             let (peer_id, peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
+            peer_ids.insert(peer_id);
             let mut receiver = peer_channel.receiver.lock().await;
             if let Err(err) = peer_channel.sender.send(request).await {
                 debug!("Failed to send message to peer: {err}");
@@ -629,7 +658,7 @@ impl PeerHandler {
                     })
                     .flatten()
             }) {
-                self.record_peer_success(peer_id).await;
+                self.record_snap_peer_success(peer_id, peer_ids).await;
                 return Some(nodes);
             }
         }
@@ -646,6 +675,9 @@ impl PeerHandler {
         state_root: H256,
         paths: BTreeMap<H256, Vec<Nibbles>>,
     ) -> Option<Vec<Node>> {
+        // Keep track of peers we requested from so we can penalize unresponsive peers when we get a response
+        // This is so we avoid penalizing peers due to requesting stale data
+        let mut peer_ids = HashSet::new();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             let request_id = rand::random();
             let expected_nodes = paths.iter().fold(0, |acc, item| acc + item.1.len());
@@ -671,6 +703,7 @@ impl PeerHandler {
             let (peer_id, peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
+            peer_ids.insert(peer_id);
             let mut receiver = peer_channel.receiver.lock().await;
             if let Err(err) = peer_channel.sender.send(request).await {
                 debug!("Failed to send message to peer: {err}");
@@ -705,7 +738,7 @@ impl PeerHandler {
                     })
                     .flatten()
             }) {
-                self.record_peer_success(peer_id);
+                self.record_snap_peer_success(peer_id, peer_ids).await;
                 return Some(nodes);
             }
         }
@@ -727,6 +760,9 @@ impl PeerHandler {
         account_hash: H256,
         start: H256,
     ) -> Option<(Vec<H256>, Vec<U256>, bool)> {
+        // Keep track of peers we requested from so we can penalize unresponsive peers when we get a response
+        // This is so we avoid penalizing peers due to requesting stale data
+        let mut peer_ids = HashSet::new();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             let request_id = rand::random();
             let request = RLPxMessage::GetStorageRanges(GetStorageRanges {
@@ -740,6 +776,7 @@ impl PeerHandler {
             let (peer_id, peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
+            peer_ids.insert(peer_id);
             let mut receiver = peer_channel.receiver.lock().await;
             if let Err(err) = peer_channel.sender.send(request).await {
                 debug!("Failed to send message to peer: {err}");
@@ -783,10 +820,8 @@ impl PeerHandler {
                 if let Ok(should_continue) =
                     verify_range(storage_root, &start, &storage_keys, &encoded_values, &proof)
                 {
+                    self.record_snap_peer_success(peer_id, peer_ids).await;
                     return Some((storage_keys, storage_values, should_continue));
-                } else {
-                    warn!("[SYNCING] Received invalid storage range, penalizing peer {peer_id}...");
-                    self.record_peer_critical_failure(peer_id).await;
                 }
             }
         }
