@@ -177,7 +177,7 @@ async fn state_sync_segment(
             }
             // Send code hash batch to the bytecode fetcher
             if !code_hashes.is_empty() {
-                bytecode_sender.send(code_hashes).await.unwrap();
+                if let Err(err) = bytecode_sender.send(code_hashes).await {info!("SEND ERROR when sending to storage fetcher: {}", err.to_string()) };
             }
             // Send hash and root batch to the storage fetcher
             if !account_hashes_and_storage_roots.is_empty() {
