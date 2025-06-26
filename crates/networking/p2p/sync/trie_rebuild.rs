@@ -364,7 +364,7 @@ async fn rebuild_storage_tries(
         let tracker = TrieTracker {
             account_hash,
             expected_root,
-            trie: store.open_storage_trie(account_hash, *EMPTY_TRIE_HASH)?,
+            trie: store.open_storage_trie(account_hash, *EMPTY_TRIE_HASH).unwrap(),
             start: H256::zero(),
             complete: false,
         };
@@ -388,7 +388,7 @@ async fn rebuild_storage_tries(
             }
             // Process batch
             for (key, val) in batch {
-                tracker.trie.insert(key.0.to_vec(), val.encode_to_vec())?;
+                tracker.trie.insert(key.0.to_vec(), val.encode_to_vec()).unwrap();
             }
 
             // Commit nodes if needed
