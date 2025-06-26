@@ -153,8 +153,7 @@ async fn state_sync_segment(
             );
             // Update starting hash for next batch
             let last_account_hash = account_hashes
-                .last()
-                .ok_or(SyncError::InvalidRangeReceived)?;
+                .last().unwrap();
             start_account_hash = *last_account_hash;
 
             // Fetch Account Storage & Bytecode
@@ -178,13 +177,13 @@ async fn state_sync_segment(
             }
             // Send code hash batch to the bytecode fetcher
             if !code_hashes.is_empty() {
-                bytecode_sender.send(code_hashes).await?;
+                bytecode_sender.send(code_hashes).await.unwrap();
             }
             // Send hash and root batch to the storage fetcher
             if !account_hashes_and_storage_roots.is_empty() {
                 storage_sender
                     .send(account_hashes_and_storage_roots)
-                    .await?;
+                    .await.unwrap();
             }
             // Update Snapshot
             store
