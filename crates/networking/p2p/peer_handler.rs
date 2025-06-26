@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use bytes::Bytes;
@@ -373,10 +373,37 @@ impl PeerHandler {
         start: H256,
         limit: H256,
     ) -> Option<(Vec<H256>, Vec<AccountState>, bool)> {
+        let start_t = Instant::now();
+        struct RetryTimeCount {
+            total: u128,
+            fetching_peer: u128,
+            requesting: Option<u128>,
+            verifying_res: Option<u128>,
+            recording_success: Option<u128>,
+        }
+        fn show_request_account_range_time_report(total_time: u128, retry_rep: &Vec<RetryTimeCount>) {
+            let mut output = format!("[RequestAccountRange] Total Time: {total_time}ms.\n Retry Breakdown:\n");
+            for (i, report) in retry_rep.iter().enumerate() {
+                output.push_str(&format!("Retry no{i}: {}ms\n", report.total));
+                output.push_str(&format!("* fetching_peer: {}ms", report.fetching_peer));
+                if let Some(requesting) = report.requesting {
+                    output.push_str(&format!("* requesting: {requesting}ms"));
+                }
+                if let Some(verifying_res) = report.verifying_res {
+                    output.push_str(&format!("* verifying_res: {verifying_res}ms"));
+                }
+                if let Some(recording_success) = report.recording_success {
+                    output.push_str(&format!("* recording_success: {recording_success}ms"));
+                }
+            }
+            info!("{output}")
+        }
+        let mut reports = Vec::new();
         // Keep track of peers we requested from so we can penalize unresponsive peers when we get a response
         // This is so we avoid penalizing peers due to requesting stale data
         let mut peer_ids = HashSet::new();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
+            let start_r = Instant::now();
             let request_id = rand::random();
             let request = RLPxMessage::GetAccountRange(GetAccountRange {
                 id: request_id,
@@ -388,6 +415,7 @@ impl PeerHandler {
             let (peer_id, peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
+            let fetching_peer = start_r.elapsed().as_millis();
             peer_ids.insert(peer_id);
             let mut receiver = peer_channel.receiver.lock().await;
             if let Err(err) = peer_channel.sender.send(request).await {
@@ -412,6 +440,7 @@ impl PeerHandler {
             .ok()
             .flatten()
             {
+                let requesting = start_r.elapsed().as_millis() - fetching_peer;
                 // Unzip & validate response
                 let proof = encodable_to_proof(&proof);
                 let (account_hashes, accounts): (Vec<_>, Vec<_>) = accounts
@@ -429,11 +458,41 @@ impl PeerHandler {
                     &encoded_accounts,
                     &proof,
                 ) {
+                    let verifying_res = start_r.elapsed().as_millis() - fetching_peer - requesting;
                     self.record_snap_peer_success(peer_id, peer_ids).await;
+                    let recording_success = start_r.elapsed().as_millis() - fetching_peer - requesting - verifying_res;
+                    let rep = RetryTimeCount {
+                        total: start_r.elapsed().as_millis(),
+                        fetching_peer,
+                        requesting: Some(requesting),
+                        verifying_res: Some(verifying_res),
+                        recording_success: Some(recording_success),
+                    };
+                    reports.push(rep);
+                    show_request_account_range_time_report(start_t.elapsed().as_millis(), &reports);
                     return Some((account_hashes, accounts, should_continue));
+                } else {
+                    let rep = RetryTimeCount {
+                        total: start_r.elapsed().as_millis(),
+                        fetching_peer,
+                        requesting: Some(requesting),
+                        verifying_res: None,
+                        recording_success: None,
+                    };
+                    reports.push(rep);
                 }
+            } else {
+                let rep = RetryTimeCount {
+                    total: start_r.elapsed().as_millis(),
+                    fetching_peer,
+                    requesting: None,
+                    verifying_res: None,
+                    recording_success: None,
+                };
+                reports.push(rep);
             }
         }
+        show_request_account_range_time_report(start_t.elapsed().as_millis(), &reports);
         None
     }
 
