@@ -380,20 +380,21 @@ impl PeerHandler {
             requesting: Option<u128>,
             verifying_res: Option<u128>,
             recording_success: Option<u128>,
+            peer: H256,
         }
         fn show_request_account_range_time_report(total_time: u128, retry_rep: &Vec<RetryTimeCount>) {
             let mut output = format!("[RequestAccountRange] Total Time: {total_time}ms.\n Retry Breakdown:\n");
             for (i, report) in retry_rep.iter().enumerate() {
-                output.push_str(&format!("Retry no{i}: {}ms\n", report.total));
-                output.push_str(&format!("* fetching_peer: {}ms", report.fetching_peer));
+                output.push_str(&format!("Retry number: {i}, peer: {}, total_time: {}ms\n", report.peer, report.total));
+                output.push_str(&format!("* fetching_peer: {}ms\n", report.fetching_peer));
                 if let Some(requesting) = report.requesting {
-                    output.push_str(&format!("* requesting: {requesting}ms"));
+                    output.push_str(&format!("* requesting: {requesting}ms\n"));
                 }
                 if let Some(verifying_res) = report.verifying_res {
-                    output.push_str(&format!("* verifying_res: {verifying_res}ms"));
+                    output.push_str(&format!("* verifying_res: {verifying_res}ms\n"));
                 }
                 if let Some(recording_success) = report.recording_success {
-                    output.push_str(&format!("* recording_success: {recording_success}ms"));
+                    output.push_str(&format!("* recording_success: {recording_success}ms\n"));
                 }
             }
             info!("{output}")
@@ -467,6 +468,7 @@ impl PeerHandler {
                         requesting: Some(requesting),
                         verifying_res: Some(verifying_res),
                         recording_success: Some(recording_success),
+                        peer: peer_id,
                     };
                     reports.push(rep);
                     show_request_account_range_time_report(start_t.elapsed().as_millis(), &reports);
@@ -478,6 +480,7 @@ impl PeerHandler {
                         requesting: Some(requesting),
                         verifying_res: None,
                         recording_success: None,
+                        peer: peer_id,
                     };
                     reports.push(rep);
                 }
@@ -488,6 +491,7 @@ impl PeerHandler {
                     requesting: None,
                     verifying_res: None,
                     recording_success: None,
+                    peer: peer_id,
                 };
                 reports.push(rep);
             }
