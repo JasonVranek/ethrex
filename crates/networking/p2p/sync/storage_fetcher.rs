@@ -140,11 +140,11 @@ async fn fetch_storage_batch(
         // Store the storage ranges & rebuild the storage trie for each account
         let filled_storages: Vec<(H256, H256)> = batch.drain(..values.len()).collect();
         let account_hashes: Vec<H256> = filled_storages.iter().map(|(hash, _)| *hash).collect();
-        if let Err(err) = store
+        store
         .write_snapshot_storage_batches(account_hashes, keys, values)
-        .await {info!("SEND ERROR when sending to storage rebuilder: {}", err.to_string()) };
+        .await?;
         // Send complete storages to the rebuilder
-        storage_trie_rebuilder_sender.send(filled_storages).await.unwrap();
+        if let Err(err) =  storage_trie_rebuilder_sender.send(filled_storages).await {info!("SEND ERROR when sending to storage rebuilder: {}", err.to_string()) };
         // Return remaining code hashes in the batch if we couldn't fetch all of them
         return Ok((batch, false));
     }

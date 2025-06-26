@@ -264,7 +264,7 @@ async fn rebuild_storage_trie_in_background(
             account_hashes.push(account_hash);
             expected_roots.push(expected_root);
         }
-        rebuild_storage_tries(account_hashes, expected_roots, store.clone()).await?;
+        rebuild_storage_tries(account_hashes, expected_roots, store.clone()).await.unwrap();
         total_rebuild_time += rebuild_start.elapsed().as_millis();
     }
     store
