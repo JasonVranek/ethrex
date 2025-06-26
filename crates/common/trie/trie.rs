@@ -106,7 +106,7 @@ impl Trie {
     /// Insert an RLP-encoded value into the trie.
     pub fn insert(&mut self, path: PathRLP, value: ValueRLP) -> Result<(), TrieError> {
         let path = Nibbles::from_bytes(&path);
-
+        dbg!(&self.root);
         self.root = if self.root.is_valid() {
             // If the trie is not empty, call the root node's insertion logic.
             self.root
