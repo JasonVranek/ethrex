@@ -396,7 +396,7 @@ async fn rebuild_storage_tries(
                 match tracker.trie.insert(key.0.to_vec(), val.encode_to_vec()) {
                     Ok(_) => {},
                     Err(TrieError::LockError) => {
-                        info!("[storage trie rebuild] Insertion failed; root history: {:?}", tracker.root_history);
+                        info!("[storage trie rebuild] Insertion failed; root history: {:?}", tracker.root_history.iter().rev().take(3));
                         panic!("3")
                     }
                     e @ Err(_) => e?,
