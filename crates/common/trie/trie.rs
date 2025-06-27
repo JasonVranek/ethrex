@@ -90,6 +90,11 @@ impl Trie {
         self.db.as_ref()
     }
 
+    // Debug
+    pub fn read_root(&self) -> NodeRef {
+        self.root.clone()
+    }
+
     /// Retrieve an RLP-encoded value from the trie given its RLP-encoded path.
     pub fn get(&self, path: &PathRLP) -> Result<Option<ValueRLP>, TrieError> {
         Ok(match self.root {
@@ -113,7 +118,8 @@ impl Trie {
                 .into(),
                 _ => {
                     info!("Trie Insert failed due to root not found in db, root: {:?}", self.root);
-                panic!("2")
+                    // use this error for debug as it is highly unlikely
+                    return Err(TrieError::LockError)
                 },
             }
         } else {

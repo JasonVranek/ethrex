@@ -8,7 +8,7 @@
 use ethrex_common::{BigEndianHash, H256, U256, U512};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_storage::{MAX_SNAPSHOT_READS, STATE_TRIE_SEGMENTS, Store};
-use ethrex_trie::{EMPTY_TRIE_HASH, Nibbles, Trie};
+use ethrex_trie::{Nibbles, NodeRef, Trie, TrieError, EMPTY_TRIE_HASH};
 use std::{array, collections::HashMap};
 use tokio::{
     sync::mpsc::{Receiver, Sender, channel},
@@ -356,6 +356,8 @@ async fn rebuild_storage_tries(
         trie: Trie,
         start: H256,
         complete: bool,
+        // debug
+        root_history: Vec<NodeRef>
     }
 
     let mut trie_trackers = Vec::new();
@@ -367,6 +369,8 @@ async fn rebuild_storage_tries(
             trie: store.open_storage_trie(account_hash, *EMPTY_TRIE_HASH).unwrap(),
             start: H256::zero(),
             complete: false,
+            // debug
+            root_history: Vec::new(),
         };
         trie_trackers.push(tracker);
     }
@@ -388,7 +392,15 @@ async fn rebuild_storage_tries(
             }
             // Process batch
             for (key, val) in batch {
-                tracker.trie.insert(key.0.to_vec(), val.encode_to_vec()).unwrap();
+                tracker.root_history.push(tracker.trie.read_root());
+                match tracker.trie.insert(key.0.to_vec(), val.encode_to_vec()) {
+                    Ok(_) => {},
+                    Err(TrieError::LockError) => {
+                        info!("[storage trie rebuild] Insertion failed; root history: {:?}", tracker.root_history);
+                        panic!("3")
+                    }
+                    e @ Err(_) => return e,
+                }
             }
 
             // Commit nodes if needed
