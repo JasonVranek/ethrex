@@ -32,7 +32,8 @@ pub(crate) const REBUILDER_INCOMPLETE_STORAGE_ROOT: H256 = H256::zero();
 /// Max storages to rebuild in parallel
 const MAX_PARALLEL_REBUILDS: usize = 5;
 
-const MAX_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 5;
+const MAX_STORAGE_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 5;
+const MAX_ACCOUNT_SNAPSHOT_READS_WITHOUT_COMMIT: usize = 10;
 
 /// Represents the permanently ongoing background trie rebuild process
 /// This process will be started whenever a state sync is initiated and will be
@@ -188,7 +189,7 @@ async fn rebuild_state_trie_segment(
         for (hash, account) in batch.iter() {
             state_trie.insert(hash.0.to_vec(), account.encode_to_vec())?;
         }
-        if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
+        if snapshot_reads_since_last_commit > MAX_ACCOUNT_SNAPSHOT_READS_WITHOUT_COMMIT {
             snapshot_reads_since_last_commit = 0;
             state_trie.hash()?;
         }
@@ -306,7 +307,7 @@ async fn rebuild_storage_trie(
             storage_trie.insert(key.0.to_vec(), val.encode_to_vec())?;
         }
         i_t += i_s.elapsed().as_millis();
-        if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
+        if snapshot_reads_since_last_commit > MAX_STORAGE_SNAPSHOT_READS_WITHOUT_COMMIT {
             let h_s = Instant::now();
             snapshot_reads_since_last_commit = 0;
             let (_, rep) = storage_trie.hash_loud()?;
@@ -397,7 +398,7 @@ async fn rebuild_storage_tries(
 
             // Commit nodes if needed
             if unfilled_batch
-                || snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT
+                || snapshot_reads_since_last_commit > MAX_STORAGE_SNAPSHOT_READS_WITHOUT_COMMIT
             {
                 nodes
                     .entry(tracker.account_hash)
@@ -422,11 +423,12 @@ async fn rebuild_storage_tries(
                     tracker.complete = true;
                 } else {
                     // Trie is left in unusable after commiting, we must create a new one
-                    tracker.trie = store.open_storage_trie(tracker.account_hash, tracker.trie.hash_no_commit())?;
+                    tracker.trie = store
+                        .open_storage_trie(tracker.account_hash, tracker.trie.hash_no_commit())?;
                 }
             }
         }
-        if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
+        if snapshot_reads_since_last_commit > MAX_STORAGE_SNAPSHOT_READS_WITHOUT_COMMIT {
             snapshot_reads_since_last_commit = 0;
             // Commit all nodes we have accumulated up to now
             // This is essential as we won't be able to access tries which we have partially commited if we don't store their nodes on the DB
