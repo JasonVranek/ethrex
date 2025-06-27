@@ -152,8 +152,7 @@ async fn state_sync_segment(
                 accounts.len()
             );
             // Update starting hash for next batch
-            let last_account_hash = account_hashes
-                .last().unwrap();
+            let last_account_hash = account_hashes.last().unwrap();
             start_account_hash = *last_account_hash;
 
             // Fetch Account Storage & Bytecode
@@ -177,15 +176,21 @@ async fn state_sync_segment(
             }
             // Send code hash batch to the bytecode fetcher
             if !code_hashes.is_empty() {
-                if let Err(err) = bytecode_sender.send(code_hashes).await {info!("SEND ERROR when sending to bytecode fetcher: {}", err.to_string()) };
+                if let Err(err) = bytecode_sender.send(code_hashes).await {
+                    info!(
+                        "SEND ERROR when sending to bytecode fetcher: {}",
+                        err.to_string()
+                    )
+                };
             }
             // Send hash and root batch to the storage fetcher
             if !account_hashes_and_storage_roots.is_empty() {
-                if let Err(err) = storage_sender
-                    .send(account_hashes_and_storage_roots)
-                    .await {
-                        info!("SEND ERROR when sending to storage fetcher: {}", err.to_string())
-                    }
+                if let Err(err) = storage_sender.send(account_hashes_and_storage_roots).await {
+                    info!(
+                        "SEND ERROR when sending to storage fetcher: {}",
+                        err.to_string()
+                    )
+                }
             }
             // Update Snapshot
             store

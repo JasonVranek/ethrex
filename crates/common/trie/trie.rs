@@ -114,13 +114,15 @@ impl Trie {
         self.root = if self.root.is_valid() {
             // If the trie is not empty, call the root node's insertion logic.
             match self.root.get_node(self.db.as_ref())? {
-                Some(root) => root.insert(self.db.as_ref(), path, value)?
-                .into(),
+                Some(root) => root.insert(self.db.as_ref(), path, value)?.into(),
                 _ => {
-                    info!("Trie Insert failed due to root not found in db, root: {:?}", self.root);
+                    info!(
+                        "Trie Insert failed due to root not found in db, root: {:?}",
+                        self.root
+                    );
                     // use this error for debug as it is highly unlikely
-                    return Err(TrieError::LockError)
-                },
+                    return Err(TrieError::LockError);
+                }
             }
         } else {
             // If the trie is empty, just add a leaf.

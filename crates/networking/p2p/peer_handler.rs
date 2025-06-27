@@ -581,7 +581,9 @@ impl PeerHandler {
                     } else if verify_range(storage_root, &start, &hashed_keys, &encoded_values, &[])
                         .is_err()
                     {
-                        warn!("[SYNCING] Received invalid storage range, penalizing peer {peer_id}...");
+                        warn!(
+                            "[SYNCING] Received invalid storage range, penalizing peer {peer_id}..."
+                        );
                         self.record_peer_critical_failure(peer_id).await;
                         continue;
                     }

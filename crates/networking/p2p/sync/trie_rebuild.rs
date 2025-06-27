@@ -8,7 +8,7 @@
 use ethrex_common::{BigEndianHash, H256, U256, U512};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_storage::{MAX_SNAPSHOT_READS, STATE_TRIE_SEGMENTS, Store};
-use ethrex_trie::{Nibbles, NodeRef, Trie, TrieError, EMPTY_TRIE_HASH};
+use ethrex_trie::{EMPTY_TRIE_HASH, Nibbles, NodeRef, Trie, TrieError};
 use std::{array, collections::HashMap};
 use tokio::{
     sync::mpsc::{Receiver, Sender, channel},
@@ -264,7 +264,9 @@ async fn rebuild_storage_trie_in_background(
             account_hashes.push(account_hash);
             expected_roots.push(expected_root);
         }
-        rebuild_storage_tries(account_hashes, expected_roots, store.clone()).await.unwrap();
+        rebuild_storage_tries(account_hashes, expected_roots, store.clone())
+            .await
+            .unwrap();
         total_rebuild_time += rebuild_start.elapsed().as_millis();
     }
     store
@@ -357,7 +359,7 @@ async fn rebuild_storage_tries(
         start: H256,
         complete: bool,
         // debug
-        root_history: Vec<NodeRef>
+        root_history: Vec<NodeRef>,
     }
 
     let mut trie_trackers = Vec::new();
@@ -366,7 +368,9 @@ async fn rebuild_storage_tries(
         let tracker = TrieTracker {
             account_hash,
             expected_root,
-            trie: store.open_storage_trie(account_hash, *EMPTY_TRIE_HASH).unwrap(),
+            trie: store
+                .open_storage_trie(account_hash, *EMPTY_TRIE_HASH)
+                .unwrap(),
             start: H256::zero(),
             complete: false,
             // debug
@@ -394,9 +398,17 @@ async fn rebuild_storage_tries(
             for (key, val) in batch {
                 tracker.root_history.push(tracker.trie.read_root());
                 match tracker.trie.insert(key.0.to_vec(), val.encode_to_vec()) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(TrieError::LockError) => {
-                        info!("[storage trie rebuild] Insertion failed; root history: {:?}", tracker.root_history.iter().rev().take(3));
+                        info!(
+                            "[storage trie rebuild] Insertion failed; root history: {:?}",
+                            tracker
+                                .root_history
+                                .iter()
+                                .rev()
+                                .take(3)
+                                .collect::<Vec<_>>()
+                        );
                         panic!("3")
                     }
                     e @ Err(_) => e?,
