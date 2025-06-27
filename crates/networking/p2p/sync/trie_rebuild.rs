@@ -278,7 +278,7 @@ async fn rebuild_storage_trie(
         // Process batch
         // Launch storage rebuild tasks for all non-empty storages
         for (key, val) in batch {
-            storage_trie.insert(key.0.to_vec(), val.encode_to_vec())?;
+            storage_trie.insert(key.0.to_vec(), val.encode_to_vec()).unwrap();
         }
         if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
             snapshot_reads_since_last_commit = 0;
