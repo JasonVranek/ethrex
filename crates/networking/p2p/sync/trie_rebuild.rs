@@ -417,7 +417,7 @@ async fn rebuild_storage_tries(
 
             // Commit nodes if needed
             if unfilled_batch
-                || snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT
+                /* || snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT*/ 
             {
                 nodes
                     .entry(tracker.account_hash)
