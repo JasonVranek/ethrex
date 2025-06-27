@@ -1129,20 +1129,21 @@ impl StoreEngine for Store {
     ) -> Result<(), StoreError> {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || {
-        let txn =db
-            .begin_readwrite()
-            .map_err(StoreError::LibmdbxError)?;
-        for (acc_hash, nodes) in changeset {
-            for (hash, node) in nodes {
-                txn.upsert::<StorageTriesNodes>((acc_hash.0, node_hash_to_fixed_size(hash)), node)
+            let txn = db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
+            for (acc_hash, nodes) in changeset {
+                for (hash, node) in nodes {
+                    txn.upsert::<StorageTriesNodes>(
+                        (acc_hash.0, node_hash_to_fixed_size(hash)),
+                        node,
+                    )
                     .map_err(StoreError::LibmdbxError)?;
+                }
             }
-        }
-        txn.commit().map_err(StoreError::LibmdbxError)?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| StoreError::Custom(format!("task panicked: {e}")))?
+            txn.commit().map_err(StoreError::LibmdbxError)?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StoreError::Custom(format!("task panicked: {e}")))?
     }
 }
 

@@ -161,6 +161,14 @@ impl Trie {
     /// Return the hash of the trie's root node.
     /// Returns keccak(RLP_NULL) if the trie is empty
     /// Also commits changes to the DB
+    pub async fn hash_async(&mut self) -> Result<H256, TrieError> {
+        self.commit_async().await?;
+        Ok(self.hash_no_commit())
+    }
+
+    /// Return the hash of the trie's root node.
+    /// Returns keccak(RLP_NULL) if the trie is empty
+    /// Also commits changes to the DB
     pub fn hash_loud(&mut self) -> Result<(H256, String), TrieError> {
         let start = Instant::now();
         let (commit, put) = self.commit()?;
@@ -209,6 +217,24 @@ impl Trie {
             let commit = start.elapsed().as_millis();
             let start = Instant::now();
             self.db.put_batch(acc)?; // we'll try to avoid calling this for every commit
+            return Ok((commit, start.elapsed().as_millis()));
+        }
+
+        Ok((0, 0))
+    }
+
+    /// Compute the hash of the root node and flush any changes into the database.
+    ///
+    /// This method will also compute the hash of all internal nodes indirectly. It will not clear
+    /// the cached nodes.
+    pub async fn commit_async(&mut self) -> Result<(u128, u128), TrieError> {
+        if self.root.is_valid() {
+            let start = Instant::now();
+            let mut acc = Vec::new();
+            self.root.commit(&mut acc);
+            let commit = start.elapsed().as_millis();
+            let start = Instant::now();
+            self.db.put_batch_async(acc).await?; // we'll try to avoid calling this for every commit
             return Ok((commit, start.elapsed().as_millis()));
         }
 
