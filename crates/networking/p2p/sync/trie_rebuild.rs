@@ -347,8 +347,8 @@ async fn rebuild_storage_trie(
 /// Assumes that the storage has been fully downloaded and will only emit a warning if there is a mismatch between the expected root and the rebuilt root, as this is considered a bug
 /// If the expected_root is `REBUILDER_INCOMPLETE_STORAGE_ROOT` then this validation will be skipped, the sender should make sure to queue said storage for healing
 async fn rebuild_storage_tries(
-    mut account_hashes: Vec<H256>,
-    mut expected_roots: Vec<H256>,
+    account_hashes: Vec<H256>,
+    expected_roots: Vec<H256>,
     store: Store,
 ) -> Result<(), SyncError> {
     debug_assert_eq!(account_hashes.len(), expected_roots.len());
@@ -358,8 +358,6 @@ async fn rebuild_storage_tries(
         trie: Trie,
         start: H256,
         complete: bool,
-        // debug
-        root_history: Vec<NodeRef>,
     }
 
     let mut trie_trackers = Vec::new();
@@ -373,8 +371,6 @@ async fn rebuild_storage_tries(
                 .unwrap(),
             start: H256::zero(),
             complete: false,
-            // debug
-            root_history: Vec::new(),
         };
         trie_trackers.push(tracker);
     }
@@ -396,58 +392,51 @@ async fn rebuild_storage_tries(
             }
             // Process batch
             for (key, val) in batch {
-                tracker.root_history.push(tracker.trie.read_root());
-                match tracker.trie.insert(key.0.to_vec(), val.encode_to_vec()) {
-                    Ok(_) => {}
-                    Err(TrieError::LockError) => {
-                        info!(
-                            "[storage trie rebuild] Insertion failed; root history: {:?}",
-                            tracker
-                                .root_history
-                                .iter()
-                                .rev()
-                                .take(3)
-                                .collect::<Vec<_>>()
-                        );
-                        panic!("3")
-                    }
-                    e @ Err(_) => e?,
-                }
+                tracker.trie.insert(key.0.to_vec(), val.encode_to_vec())?;
             }
 
             // Commit nodes if needed
             if unfilled_batch
-                /* || snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT*/ 
+                || snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT
             {
                 nodes
                     .entry(tracker.account_hash)
                     .or_insert(Vec::new())
                     .extend(tracker.trie.commit_without_storing());
-            }
 
-            // If this is the last batch, check the root and mark it as complete
-            if unfilled_batch {
-                if tracker.trie.hash_no_commit() != tracker.expected_root {
-                    warn!(
-                        "Mismatched storage root for account {}",
-                        tracker.account_hash
-                    );
-                    store
-                        .set_storage_heal_paths(vec![(
-                            tracker.account_hash,
-                            vec![Nibbles::default()],
-                        )])
-                        .await?;
+                // If this is the last batch, check the root and mark it as complete
+                if unfilled_batch {
+                    if tracker.trie.hash_no_commit() != tracker.expected_root {
+                        warn!(
+                            "Mismatched storage root for account {}",
+                            tracker.account_hash
+                        );
+                        store
+                            .set_storage_heal_paths(vec![(
+                                tracker.account_hash,
+                                vec![Nibbles::default()],
+                            )])
+                            .await?;
+                    }
+                    // Mark as complete
+                    tracker.complete = true;
+                } else {
+                    // Trie is left in unusable after commiting, we must create a new one
+                    tracker.trie = store.open_storage_trie(tracker.account_hash, tracker.trie.hash_no_commit())?;
                 }
-                // Mark as complete
-                tracker.complete = true;
             }
         }
         if snapshot_reads_since_last_commit > MAX_SNAPSHOT_READS_WITHOUT_COMMIT {
             snapshot_reads_since_last_commit = 0;
+            // Commit all nodes we have accumulated up to now
+            // This is essential as we won't be able to access tries which we have partially commited if we don't store their nodes on the DB
+            store.apply_storage_trie_changes(nodes).await?;
+            nodes = HashMap::new();
         }
     }
-    store.apply_storage_trie_changes(nodes).await?;
+    if !nodes.is_empty() {
+        store.apply_storage_trie_changes(nodes).await?;
+    }
     Ok(())
 }
 
