@@ -106,14 +106,16 @@ impl Trie {
     /// Insert an RLP-encoded value into the trie.
     pub fn insert(&mut self, path: PathRLP, value: ValueRLP) -> Result<(), TrieError> {
         let path = Nibbles::from_bytes(&path);
-        dbg!(&self.root);
         self.root = if self.root.is_valid() {
             // If the trie is not empty, call the root node's insertion logic.
-            self.root
-                .get_node(self.db.as_ref())?
-                .unwrap()
-                .insert(self.db.as_ref(), path, value)?
-                .into()
+            match self.root.get_node(self.db.as_ref())? {
+                Some(root) => root.insert(self.db.as_ref(), path, value)?
+                .into(),
+                _ => {
+                    info!("Trie Insert failed due to root not found in db, root: {:?}", self.root);
+                panic!("2")
+                },
+            }
         } else {
             // If the trie is empty, just add a leaf.
             Node::from(LeafNode::new(path, value)).into()
