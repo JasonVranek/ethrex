@@ -399,7 +399,7 @@ async fn rebuild_storage_tries(
                         info!("[storage trie rebuild] Insertion failed; root history: {:?}", tracker.root_history);
                         panic!("3")
                     }
-                    e @ Err(_) => return e,
+                    e @ Err(_) => e?,
                 }
             }
 
