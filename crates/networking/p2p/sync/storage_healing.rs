@@ -80,7 +80,7 @@ pub(crate) async fn storage_healer(
                 batch_size += val.len();
                 next_batch.insert(key, val);
             }
-            info!("Spawning storage healing task {task_num}");
+            info!("Spawning storage healing task {task_num}: batch: {next_batch:?}");
             storage_tasks.spawn(heal_storage_batch(
                 state_root,
                 next_batch.clone(),
@@ -92,7 +92,7 @@ pub(crate) async fn storage_healer(
         // Add unfetched paths to queue and handle stale signal
         for res in storage_tasks.join_all().await {
             let (remaining, is_stale) = res?;
-            info!("Storage healing task returned {} remainig; stale = {}", remaining.len(), stale);
+            info!("Storage healing task returned {} remainig: {:?}; stale = {}", remaining.len(), remaining, stale);
             pending_paths.extend(remaining);
             stale |= is_stale;
         }
