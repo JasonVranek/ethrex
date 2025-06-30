@@ -119,7 +119,6 @@ async fn heal_storage_batch(
         debug!("Received {} storage nodes", nodes.len());
         // Process the nodes for each account path
         for (acc_path, paths) in batch.iter_mut() {
-            // COMMENTING OUT STORAGE HEALING TO MEASURE IMPACT
             // CONSIDER GATHERING NODES AND COMITTING IN BIGGER BATCHES/ MORE THAN ONE TRIE PER INSERT
             let trie = store.open_storage_trie(*acc_path, *EMPTY_TRIE_HASH)?;
             // Get the corresponding nodes
@@ -133,15 +132,15 @@ async fn heal_storage_batch(
                 .collect::<Result<Vec<_>, _>>()?;
             paths.extend(children.into_iter().flatten());
             // Write nodes to trie
-            // trie.db().put_batch(
-            //     nodes
-            //         .iter()
-            //         .filter_map(|node| match node.compute_hash() {
-            //             hash @ NodeHash::Hashed(_) => Some((hash, node.encode_to_vec())),
-            //             NodeHash::Inline(_) => None,
-            //         })
-            //         .collect(),
-            // )?;
+            trie.db().put_batch(
+                nodes
+                    .iter()
+                    .filter_map(|node| match node.compute_hash() {
+                        hash @ NodeHash::Hashed(_) => Some((hash, node.encode_to_vec())),
+                        NodeHash::Inline(_) => None,
+                    })
+                    .collect(),
+            )?;
             if nodes.is_empty() {
                 break;
             }
