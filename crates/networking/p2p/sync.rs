@@ -590,7 +590,7 @@ impl Syncer {
         let storage_healer_cancell_token = self.cancel_token.child_token();
         // Create an AtomicBool to signal to the storage healer whether state healing has ended
         let state_healing_ended = Arc::new(AtomicBool::new(false));
-        let storage_healer_handler = tokio::spawn(storage_healer(
+        let storage_healer_handler: tokio::task::JoinHandle<Result<bool, SyncError>> = tokio::spawn(storage_healer(
             state_root,
             self.peers.clone(),
             store.clone(),
@@ -649,6 +649,7 @@ impl Syncer {
         // Perform Healing
         let state_heal_complete =
             heal_state_trie(state_root, store.clone(), self.peers.clone()).await?;
+        info!("State healing ended");
         // Wait for storage healer to end
         if state_heal_complete {
             state_healing_ended.store(true, Ordering::Relaxed);
