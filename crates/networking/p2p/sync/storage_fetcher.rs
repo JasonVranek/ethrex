@@ -146,12 +146,7 @@ async fn fetch_storage_batch(
             .write_snapshot_storage_batches(account_hashes, keys, values)
             .await?;
         // Send complete storages to the rebuilder
-        if let Err(err) = storage_trie_rebuilder_sender.send(filled_storages).await {
-            info!(
-                "SEND ERROR when sending to storage rebuilder: {}",
-                err.to_string()
-            )
-        };
+        storage_trie_rebuilder_sender.send(filled_storages).await?;
         // Return remaining code hashes in the batch if we couldn't fetch all of them
         return Ok((batch, false));
     }
