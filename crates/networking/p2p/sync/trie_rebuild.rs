@@ -183,6 +183,7 @@ async fn rebuild_state_trie_segment(
         // Update start
         if let Some(last) = batch.last() {
             start = next_hash(last.0);
+            return Err(SyncError::CorruptPath)
         }
         // Process batch
         // Add accounts to the state trie
