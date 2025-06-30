@@ -121,7 +121,7 @@ async fn heal_storage_batch(
         for (acc_path, paths) in batch.iter_mut() {
             // COMMENTING OUT STORAGE HEALING TO MEASURE IMPACT
             // CONSIDER GATHERING NODES AND COMITTING IN BIGGER BATCHES/ MORE THAN ONE TRIE PER INSERT
-            //let trie = store.open_storage_trie(*acc_path, *EMPTY_TRIE_HASH)?;
+            let trie = store.open_storage_trie(*acc_path, *EMPTY_TRIE_HASH)?;
             // Get the corresponding nodes
             let trie_nodes: Vec<ethrex_trie::Node> =
                 nodes.drain(..paths.len().min(nodes.len())).collect();
