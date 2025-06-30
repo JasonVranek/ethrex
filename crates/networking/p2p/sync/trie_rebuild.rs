@@ -433,7 +433,6 @@ async fn rebuild_storage_tries(
             // This is essential as we won't be able to access tries which we have partially commited if we don't store their nodes on the DB
             store.apply_storage_trie_changes(nodes).await?;
             nodes = HashMap::new();
-            return Err(SyncError::CorruptPath);
         }
     }
     if !nodes.is_empty() {
