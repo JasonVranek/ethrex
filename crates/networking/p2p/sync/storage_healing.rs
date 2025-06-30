@@ -45,7 +45,6 @@ pub(crate) async fn storage_healer(
     let mut stale = false;
     let mut last_update = Instant::now();
     while !(stale || cancel_token.is_cancelled()) {
-        dbg!(stale, cancel_token.is_cancelled());
         if last_update.elapsed() >= SHOW_PROGRESS_INTERVAL_DURATION {
             last_update = Instant::now();
             info!(
