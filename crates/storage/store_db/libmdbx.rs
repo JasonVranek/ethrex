@@ -80,6 +80,26 @@ impl Store {
         .map_err(|e| StoreError::Custom(format!("task panicked: {e}")))?
     }
 
+    // Helper method to write into a libmdbx table in batch
+    async fn write_batch_2<T: Table>(
+        &self,
+        key_values: Vec<(T::Key, T::Value)>,
+    ) -> Result<(), StoreError> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || {
+            let txn = db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
+
+            for (key, value) in key_values {
+                txn
+                    .upsert::<T>(key, value)
+                    .map_err(StoreError::LibmdbxError)?;
+            }
+            txn.commit().map_err(StoreError::LibmdbxError)
+        })
+        .await
+        .map_err(|e| StoreError::Custom(format!("task panicked: {e}")))?
+    }
+
     // Helper method to read from a libmdbx table
     async fn read<T: Table>(&self, key: T::Key) -> Result<Option<T::Value>, StoreError> {
         let db = self.db.clone();
@@ -424,7 +444,7 @@ impl StoreEngine for Store {
             .zip(codes)
             .map(|(hash, code)| (hash.into(), code.into()))
             .collect();
-        self.write_batch::<AccountCodes>(key_values).await
+        self.write_batch_2::<AccountCodes>(key_values).await
     }
 
     fn get_account_code(&self, code_hash: H256) -> Result<Option<Bytes>, StoreError> {
