@@ -414,6 +414,19 @@ impl StoreEngine for Store {
             .await
     }
 
+    async fn add_account_codes(
+        &self,
+        code_hashes: Vec<H256>,
+        codes: Vec<Bytes>,
+    ) -> Result<(), StoreError> {
+        let key_values = code_hashes
+            .into_iter()
+            .zip(codes)
+            .map(|(hash, code)| (hash.into(), code.into()))
+            .collect();
+        self.write_batch::<AccountCodes>(key_values).await
+    }
+
     fn get_account_code(&self, code_hash: H256) -> Result<Option<Bytes>, StoreError> {
         self.read_sync::<AccountCodes>(code_hash.into())?
             .map(|b| b.to())
