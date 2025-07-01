@@ -180,9 +180,7 @@ async fn state_sync_segment(
             }
             // Send hash and root batch to the storage fetcher
             if !account_hashes_and_storage_roots.is_empty() {
-                storage_sender
-                    .send(account_hashes_and_storage_roots)
-                    .await?;
+                storage_sender.send(account_hashes_and_storage_roots).await?;
             }
             // Update Snapshot
             store

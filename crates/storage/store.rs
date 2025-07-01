@@ -311,15 +311,6 @@ impl Store {
         self.engine.add_account_code(code_hash, code).await
     }
 
-    /// Add account codes in batch
-    pub async fn add_account_codes(
-        &self,
-        code_hashes: Vec<H256>,
-        codes: Vec<Bytes>,
-    ) -> Result<(), StoreError> {
-        self.engine.add_account_codes(code_hashes, codes).await
-    }
-
     pub fn get_account_code(&self, code_hash: H256) -> Result<Option<Bytes>, StoreError> {
         self.engine.get_account_code(code_hash)
     }
