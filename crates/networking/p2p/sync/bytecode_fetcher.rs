@@ -44,11 +44,15 @@ async fn fetch_bytecode_batch(
     peers: PeerHandler,
     store: Store,
 ) -> Result<Vec<H256>, SyncError> {
-    if let Some(bytecodes) = peers.request_bytecodes(batch.clone()).await {
+    if let Some(mut bytecodes) = peers.request_bytecodes(batch.clone()).await {
         debug!("Received {} bytecodes", bytecodes.len());
-        // Store the bytecodes
+        // Store the bytecodes (in two batches to avoid holding the DB for too long)
+        let bytecodes_b = bytecodes.split_off(bytecodes.len() / 2);
         store
             .add_account_codes(batch.drain(..bytecodes.len()).collect(), bytecodes)
+            .await?;
+        store
+            .add_account_codes(batch.drain(..bytecodes_b.len()).collect(), bytecodes_b)
             .await?;
     }
     // Return remaining code hashes in the batch if we couldn't fetch all of them
