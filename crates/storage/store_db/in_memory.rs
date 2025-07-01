@@ -371,6 +371,18 @@ impl StoreEngine for Store {
         Ok(())
     }
 
+    async fn add_account_codes(
+        &self,
+        code_hashes: Vec<H256>,
+        codes: Vec<Bytes>,
+    ) -> Result<(), StoreError> {
+        let mut db = self.inner()?;
+        for (hash, code) in code_hashes.into_iter().zip(codes.into_iter()) {
+            db.account_codes.insert(hash, code);
+        }
+        Ok(())
+    }
+
     fn get_account_code(&self, code_hash: H256) -> Result<Option<Bytes>, StoreError> {
         Ok(self.inner()?.account_codes.get(&code_hash).cloned())
     }
