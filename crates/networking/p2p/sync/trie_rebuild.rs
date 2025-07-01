@@ -253,32 +253,19 @@ async fn rebuild_storage_trie_in_background(
 
         // Spawn tasks to rebuild current storages
         let rebuild_start = Instant::now();
-        let mut storage_tasks = JoinSet::new();
+        let mut account_hashes = Vec::new();
+        let mut expected_roots = Vec::new();
         for _ in 0..MAX_PARALLEL_REBUILDS {
             if pending_storages.is_empty() {
                 break;
             }
-            let mut account_hashes = Vec::new();
-            let mut expected_roots = Vec::new();
-            for _ in 0..MAX_PARALLEL_REBUILDS {
-                if pending_storages.is_empty() {
-                    break;
-                }
-                let (account_hash, expected_root) = pending_storages
-                    .pop()
-                    .expect("Unreachable code, pending_storages can't be empty in this point");
-                account_hashes.push(account_hash);
-                expected_roots.push(expected_root);
-            }
-            storage_tasks.spawn(rebuild_storage_tries(
-                account_hashes,
-                expected_roots,
-                store.clone(),
-            ));
+            let (account_hash, expected_root) = pending_storages
+                .pop()
+                .expect("Unreachable code, pending_storages can't be empty in this point");
+            account_hashes.push(account_hash);
+            expected_roots.push(expected_root);
         }
-        for res in storage_tasks.join_all().await {
-            res?;
-        }
+        rebuild_storage_tries(account_hashes, expected_roots, store.clone()).await?;
         total_rebuild_time += rebuild_start.elapsed().as_millis();
     }
     store
