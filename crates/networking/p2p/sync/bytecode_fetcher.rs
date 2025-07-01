@@ -4,6 +4,7 @@
 //! Bytecodes are not tied to a block so this process will not be affected by pivot staleness
 //! The fetcher will remain active and listening until a termination signal (an empty batch) is received
 
+use bytes::Bytes;
 use ethrex_common::H256;
 use ethrex_storage::Store;
 use tokio::sync::mpsc::Receiver;
@@ -46,14 +47,14 @@ async fn fetch_bytecode_batch(
 ) -> Result<Vec<H256>, SyncError> {
     if let Some(mut bytecodes) = peers.request_bytecodes(batch.clone()).await {
         debug!("Received {} bytecodes", bytecodes.len());
-        // Store the bytecodes (in two batches to avoid holding the DB for too long)
-        let bytecodes_b = bytecodes.split_off(bytecodes.len() / 2);
-        store
+        const DB_PUSH_BATCH_SIZE: usize = 10;
+        // Store the bytecodes (in batches to avoid holding the DB for too long)
+        while !bytecodes.is_empty() {
+            let bytecodes: Vec<Bytes> = bytecodes.drain(..DB_PUSH_BATCH_SIZE.min(bytecodes.len())).collect();
+            store
             .add_account_codes(batch.drain(..bytecodes.len()).collect(), bytecodes)
             .await?;
-        store
-            .add_account_codes(batch.drain(..bytecodes_b.len()).collect(), bytecodes_b)
-            .await?;
+        }
     }
     // Return remaining code hashes in the batch if we couldn't fetch all of them
     Ok(batch)
