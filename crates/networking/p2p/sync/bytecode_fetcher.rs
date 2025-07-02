@@ -47,7 +47,7 @@ async fn fetch_bytecode_batch(
 ) -> Result<Vec<H256>, SyncError> {
     if let Some(mut bytecodes) = peers.request_bytecodes(batch.clone()).await {
         debug!("Received {} bytecodes", bytecodes.len());
-        const DB_PUSH_BATCH_SIZE: usize = 5;
+        const DB_PUSH_BATCH_SIZE: usize = 1;
         // Store the bytecodes (in batches to avoid holding the DB for too long)
         while !bytecodes.is_empty() {
             let bytecodes: Vec<Bytes> = bytecodes.drain(..DB_PUSH_BATCH_SIZE.min(bytecodes.len())).collect();
