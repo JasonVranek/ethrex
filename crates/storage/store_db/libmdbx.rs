@@ -29,7 +29,7 @@ use libmdbx::{
     table_info,
 };
 use serde_json;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
 use std::sync::Arc;
@@ -90,8 +90,7 @@ impl Store {
             let txn = db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
 
             for (key, value) in key_values {
-                txn
-                    .upsert::<T>(key, value)
+                txn.upsert::<T>(key, value)
                     .map_err(StoreError::LibmdbxError)?;
             }
             txn.commit().map_err(StoreError::LibmdbxError)
@@ -1163,14 +1162,18 @@ impl StoreEngine for Store {
         let db = self.db.clone();
         tokio::task::spawn_blocking(move || {
             let txn = db.begin_readwrite().map_err(StoreError::LibmdbxError)?;
-            for (acc_hash, nodes) in changeset {
-                for (hash, node) in nodes {
-                    txn.upsert::<StorageTriesNodes>(
-                        (acc_hash.0, node_hash_to_fixed_size(hash)),
-                        node,
-                    )
+            // Sort before insertion
+            let to_insert = changeset
+                .into_iter()
+                .flat_map(|(hash, nodes)| {
+                    nodes.into_iter().map(move |(node_hash, node)| {
+                        ((hash.0, node_hash_to_fixed_size(node_hash)), node)
+                    })
+                })
+                .collect::<BTreeMap<([u8; 32], [u8; 33]), Vec<u8>>>();
+            for (key, value) in to_insert {
+                txn.upsert::<StorageTriesNodes>(key, value)
                     .map_err(StoreError::LibmdbxError)?;
-                }
             }
             txn.commit().map_err(StoreError::LibmdbxError)?;
             Ok(())
