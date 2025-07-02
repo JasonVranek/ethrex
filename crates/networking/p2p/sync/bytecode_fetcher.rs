@@ -47,13 +47,15 @@ async fn fetch_bytecode_batch(
 ) -> Result<Vec<H256>, SyncError> {
     if let Some(mut bytecodes) = peers.request_bytecodes(batch.clone()).await {
         debug!("Received {} bytecodes", bytecodes.len());
-        const DB_PUSH_BATCH_SIZE: usize = 1;
+        const DB_PUSH_BATCH_SIZE: usize = 2;
         // Store the bytecodes (in batches to avoid holding the DB for too long)
         while !bytecodes.is_empty() {
-            let bytecodes: Vec<Bytes> = bytecodes.drain(..DB_PUSH_BATCH_SIZE.min(bytecodes.len())).collect();
+            let bytecodes: Vec<Bytes> = bytecodes
+                .drain(..DB_PUSH_BATCH_SIZE.min(bytecodes.len()))
+                .collect();
             store
-            .add_account_codes(batch.drain(..bytecodes.len()).collect(), bytecodes)
-            .await?;
+                .add_account_codes(batch.drain(..bytecodes.len()).collect(), bytecodes)
+                .await?;
         }
     }
     // Return remaining code hashes in the batch if we couldn't fetch all of them
