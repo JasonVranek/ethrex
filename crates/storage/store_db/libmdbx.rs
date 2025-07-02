@@ -1171,12 +1171,8 @@ impl StoreEngine for Store {
                     })
                 })
                 .collect::<BTreeMap<([u8; 32], [u8; 33]), Vec<u8>>>();
-            let mut cursor = txn
-                .cursor::<StorageTriesNodes>()
-                .map_err(StoreError::LibmdbxError)?;
             for (key, value) in to_insert {
-                cursor
-                    .upsert(key, value)
+                txn.upsert::<StorageTriesNodes>(key, value)
                     .map_err(StoreError::LibmdbxError)?;
             }
             txn.commit().map_err(StoreError::LibmdbxError)?;
