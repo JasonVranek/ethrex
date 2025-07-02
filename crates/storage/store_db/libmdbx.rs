@@ -893,7 +893,7 @@ impl StoreEngine for Store {
         &self,
         paths: Vec<(H256, Vec<Nibbles>)>,
     ) -> Result<(), StoreError> {
-        self.write_batch::<StorageHealPaths>(
+        self.write_batch_2::<StorageHealPaths>(
             paths
                 .into_iter()
                 .map(|(hash, paths)| (hash.into(), paths.into()))
@@ -964,7 +964,7 @@ impl StoreEngine for Store {
         account_hashes: Vec<H256>,
         account_states: Vec<AccountState>,
     ) -> Result<(), StoreError> {
-        self.write_batch::<StateSnapShot>(
+        self.write_batch_2::<StateSnapShot>(
             account_hashes
                 .into_iter()
                 .map(|h| h.into())
