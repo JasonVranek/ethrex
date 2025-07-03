@@ -17,7 +17,7 @@ use tokio::{
     },
     time::{Instant, sleep},
 };
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     peer_handler::PeerHandler,
@@ -29,13 +29,81 @@ use crate::{
 
 use super::{SHOW_PROGRESS_INTERVAL_DURATION, SyncError};
 
+pub(crate) async fn state_sync(
+    state_root: H256,
+    store: Store,
+    peers: PeerHandler,
+    range_start: H256,
+) -> Result<(bool, H256), SyncError> {
+    info!("Starting state sync phase, fetching accounts...");
+    let start = Instant::now();
+    let mut n_accounts = 0;
+
+    let mut start_account_hash = range_start;
+    let end_account_hash = H256::repeat_byte(0xff);
+    let mut stale = false;
+    loop {
+        info!(
+            "Requesting accounts in range [{}, {}]",
+            start_account_hash, end_account_hash
+        );
+        // Request accounts
+        let Some((account_hashes, accounts, should_continue)) = peers
+            .request_account_range(state_root, start_account_hash, end_account_hash)
+            .await
+        else {
+            warn!("Failed to fetch accounts in range. State might be too old.");
+            stale = true;
+            break;
+        };
+
+        if account_hashes.is_empty() {
+            warn!("Got no accounts");
+            continue;
+        }
+        n_accounts += account_hashes.len();
+
+        info!(
+            "Received {} accounts in range [{}, {}]",
+            account_hashes.len(),
+            start_account_hash,
+            end_account_hash
+        );
+
+        let next_start = *account_hashes
+            .last()
+            .expect("we already checked this is not empty");
+
+        // Store the accounts in DB
+        store
+            .write_snapshot_account_batch(account_hashes, accounts)
+            .await?;
+
+        // TODO: download storage & bytecode for each account
+
+        // Start the next range from the last account hash + 1
+        let next_start_uint = U256::from_big_endian(&next_start.0).saturating_add(U256::one());
+        start_account_hash = H256::from_uint(&next_start_uint);
+
+        if !should_continue {
+            start_account_hash = end_account_hash;
+            break;
+        }
+    }
+
+    let elapsed = start.elapsed();
+    info!("Received {n_accounts} accounts accounts in {elapsed:?} seconds");
+
+    Ok((stale, start_account_hash))
+}
+
 /// Downloads the leaf values of a Block's state trie by requesting snap state from peers
 /// Also downloads the storage tries & bytecodes for each downloaded account
 /// Receives optional checkpoints in case there was a previous snap sync process that became stale, in which
 /// case it will resume it
 /// Returns the pivot staleness status (true if stale, false if not)
 /// If the pivot is not stale by the end of the state sync then the state sync was completed succesfuly
-pub(crate) async fn state_sync(
+pub(crate) async fn state_sync_old(
     state_root: H256,
     store: Store,
     peers: PeerHandler,

@@ -6,7 +6,10 @@ mod storage_fetcher;
 mod storage_healing;
 mod trie_rebuild;
 
-use crate::peer_handler::{BlockRequestOrder, HASH_MAX, MAX_BLOCK_BODIES_TO_REQUEST, PeerHandler};
+use crate::{
+    peer_handler::{BlockRequestOrder, HASH_MAX, MAX_BLOCK_BODIES_TO_REQUEST, PeerHandler},
+    sync::state_sync::state_sync_old,
+};
 use bytecode_fetcher::bytecode_fetcher;
 use ethrex_blockchain::{BatchBlockProcessingFailure, Blockchain, error::ChainError};
 use ethrex_common::{
@@ -185,7 +188,11 @@ impl Syncer {
         // TODO(#2126): To avoid modifying the current_head while backtracking we use a separate search_head
         let mut search_head = current_head;
 
-        loop {
+        let mut sync_head_found = false;
+
+        let started = Instant::now();
+
+        while !sync_head_found {
             debug!("Requesting Block Headers from {search_head}");
 
             let Some(mut block_headers) = self
@@ -220,7 +227,7 @@ impl Syncer {
                 continue;
             }
 
-            debug!(
+            info!(
                 "Received {} block headers| First Number: {} Last Number: {}",
                 block_headers.len(),
                 first_block_header.number,
@@ -237,7 +244,6 @@ impl Syncer {
             }
 
             // Filter out everything after the sync_head
-            let mut sync_head_found = false;
             if let Some(index) = block_hashes.iter().position(|&hash| hash == sync_head) {
                 sync_head_found = true;
                 block_hashes = block_hashes.iter().take(index + 1).cloned().collect();
@@ -297,11 +303,12 @@ impl Syncer {
                     }
                 }
             }
-
-            if sync_head_found {
-                break;
-            };
         }
+        info!(
+            "Downloaded {} headers in {} seconds",
+            all_block_hashes.len(),
+            started.elapsed().as_secs()
+        );
         match sync_mode {
             SyncMode::Snap => {
                 // snap-sync: launch tasks to fetch blocks and state in parallel
@@ -312,15 +319,16 @@ impl Syncer {
                 let pivot_header = store
                     .get_block_header_by_hash(all_block_hashes[pivot_idx])?
                     .ok_or(SyncError::CorruptDB)?;
-                debug!(
-                    "Selected block {} as pivot for snap sync",
-                    pivot_header.number
-                );
-                let store_bodies_handle = tokio::spawn(store_block_bodies(
-                    all_block_hashes[pivot_idx + 1..].to_vec(),
-                    self.peers.clone(),
-                    store.clone(),
-                ));
+                // TODO: uncomment this
+                // debug!(
+                //     "Selected block {} as pivot for snap sync",
+                //     pivot_header.number
+                // );
+                // let store_bodies_handle = tokio::spawn(store_block_bodies(
+                //     all_block_hashes[pivot_idx + 1..].to_vec(),
+                //     self.peers.clone(),
+                //     store.clone(),
+                // ));
                 // Perform snap sync
                 if !self
                     .snap_sync(pivot_header.state_root, store.clone())
@@ -330,7 +338,7 @@ impl Syncer {
                     return Ok(());
                 }
                 // Wait for all bodies to be downloaded
-                store_bodies_handle.await??;
+                // store_bodies_handle.await??;
                 // For all blocks before the pivot: Store the bodies and fetch the receipts (TODO)
                 // For all blocks after the pivot: Process them fully
                 for hash in &all_block_hashes[pivot_idx + 1..] {
@@ -574,13 +582,39 @@ async fn store_receipts(
 }
 
 impl Syncer {
+    // Downloads the latest state trie for the given state root.
+    // Returns `true` if the state is fully consistent and new blocks can be executed on top of it,
+    // or false if the state is still inconsistent and snap sync must be resumed on the next sync cycle.
+    async fn snap_sync(&mut self, state_root: H256, store: Store) -> Result<bool, SyncError> {
+        info!("Executing snap sync");
+
+        let key_checkpoints = store.get_state_trie_key_checkpoint().await?;
+        if key_checkpoints.is_none()
+            || key_checkpoints.is_some_and(|ch| {
+                ch.into_iter()
+                    .zip(STATE_TRIE_SEGMENTS_END.into_iter())
+                    .any(|(ch, end)| ch < end)
+            })
+        {
+            let range_start = key_checkpoints.unwrap_or([H256::zero()])[0];
+            let (stale, last_hash) =
+                state_sync(state_root, store.clone(), self.peers.clone(), range_start).await?;
+            store.set_state_trie_key_checkpoint([last_hash]).await?;
+            if stale {
+                return Ok(false);
+            }
+        }
+        // TODO: add healing
+        Ok(true)
+    }
+
     // Downloads the latest state trie and all associated storage tries & bytecodes from peers
     // Rebuilds the state trie and all storage tries based on the downloaded data
     // Performs state healing in order to fix all inconsistencies with the downloaded state
     // Returns the success status, if it is true, then the state is fully consistent and
     // new blocks can be executed on top of it, if false then the state is still inconsistent and
     // snap sync must be resumed on the next sync cycle
-    async fn snap_sync(&mut self, state_root: H256, store: Store) -> Result<bool, SyncError> {
+    async fn snap_sync_old(&mut self, state_root: H256, store: Store) -> Result<bool, SyncError> {
         // Begin the background trie rebuild process if it is not active yet or if it crashed
         if !self
             .trie_rebuilder
@@ -622,7 +656,7 @@ impl Syncer {
                 .storage_rebuilder_sender
                 .clone();
 
-            let stale_pivot = state_sync(
+            let stale_pivot = state_sync_old(
                 state_root,
                 store.clone(),
                 self.peers.clone(),
