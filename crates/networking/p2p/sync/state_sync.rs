@@ -128,7 +128,7 @@ pub(crate) async fn state_sync(
                     .take(STORAGE_BATCH_SIZE)
                     .cloned()
                     .collect::<Vec<_>>();
-                info!("Downloading storage for {} accounts", batch.len());
+                info!("Downloading storage for batch of {} accounts", batch.len());
                 batch
             };
             let (account_hashes, storage_roots): (Vec<_>, Vec<_>) = batch.iter().cloned().unzip();
@@ -142,7 +142,8 @@ pub(crate) async fn state_sync(
                 )
                 .await
             else {
-                warn!("Got no storages");
+                warn!("Got no storages. State might be too old.");
+                stale = true;
                 break 'outer;
             };
 
@@ -215,7 +216,7 @@ pub(crate) async fn state_sync(
     }
 
     let elapsed = start.elapsed();
-    info!("Received {n_accounts} accounts accounts in {elapsed:?} seconds");
+    info!("Received {n_accounts} accounts in {elapsed:?} seconds");
 
     Ok((stale, start_account_hash))
 }
