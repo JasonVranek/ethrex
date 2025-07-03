@@ -387,7 +387,7 @@ impl PeerHandler {
                 debug!("Failed to send message to peer: {err:?}");
                 continue;
             }
-            if let Some((accounts, proof)) = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
+            let request_loop = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
                 loop {
                     match receiver.recv().await {
                         Some(RLPxMessage::AccountRange(AccountRange {
@@ -400,11 +400,8 @@ impl PeerHandler {
                         None => return None,
                     }
                 }
-            })
-            .await
-            .ok()
-            .flatten()
-            {
+            });
+            if let Some((accounts, proof)) = request_loop.await.ok().flatten() {
                 // Unzip & validate response
                 let proof = encodable_to_proof(&proof);
                 let (account_hashes, accounts): (Vec<_>, Vec<_>) = accounts
