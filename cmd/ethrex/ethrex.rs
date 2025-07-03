@@ -7,7 +7,7 @@ use ethrex::{
     },
     utils::{NodeConfigFile, set_datadir, store_node_config_file},
 };
-use ethrex_p2p::network::peer_table;
+use ethrex_p2p::{network::peer_table, sync::SnapSyncStatus};
 #[cfg(feature = "sync-test")]
 use ethrex_storage::Store;
 #[cfg(feature = "sync-test")]
@@ -82,6 +82,10 @@ async fn main() -> eyre::Result<()> {
 
     let cancel_token = tokio_util::sync::CancellationToken::new();
 
+    let snap_sync_status = Arc::new(Mutex::new(
+        SnapSyncStatus::read_from_store(store.clone()).await?,
+    ));
+
     init_rpc_api(
         &opts,
         #[cfg(feature = "l2")]
@@ -93,6 +97,7 @@ async fn main() -> eyre::Result<()> {
         blockchain.clone(),
         cancel_token.clone(),
         tracker.clone(),
+        snap_sync_status.clone(),
         #[cfg(feature = "l2")]
         StoreRollup::default(),
     )
@@ -138,6 +143,8 @@ async fn main() -> eyre::Result<()> {
             cancel_token.cancel();
             let node_config = NodeConfigFile::new(peer_table, local_node_record.lock().await.clone()).await;
             store_node_config_file(node_config, node_config_path).await;
+            info!("Storing snap sync status...");
+            snap_sync_status.lock().await.write_to_store(store).await?;
             tokio::time::sleep(Duration::from_secs(1)).await;
             info!("Server shutting down!");
         }

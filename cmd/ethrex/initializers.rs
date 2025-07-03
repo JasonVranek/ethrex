@@ -9,6 +9,7 @@ use ethrex_p2p::{
     kademlia::KademliaTable,
     network::{P2PContext, public_key_from_signing_key},
     peer_handler::PeerHandler,
+    sync::SnapSyncStatus,
     sync_manager::SyncManager,
     types::{Node, NodeRecord},
 };
@@ -128,6 +129,7 @@ pub async fn init_rpc_api(
     blockchain: Arc<Blockchain>,
     cancel_token: CancellationToken,
     tracker: TaskTracker,
+    snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
     #[cfg(feature = "l2")] rollup_store: StoreRollup,
 ) {
     let peer_handler = PeerHandler::new(peer_table);
@@ -139,6 +141,7 @@ pub async fn init_rpc_api(
         cancel_token,
         blockchain.clone(),
         store.clone(),
+        snap_sync_status,
     )
     .await;
 

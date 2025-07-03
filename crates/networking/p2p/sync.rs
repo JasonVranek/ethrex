@@ -1,5 +1,6 @@
 mod bytecode_fetcher;
 mod fetcher_queue;
+mod snap_sync_status;
 mod state_healing;
 mod state_sync;
 mod storage_fetcher;
@@ -16,6 +17,7 @@ use ethrex_common::{
 use ethrex_rlp::error::RLPDecodeError;
 use ethrex_storage::{EngineType, STATE_TRIE_SEGMENTS, Store, error::StoreError};
 use ethrex_trie::{Nibbles, Node, TrieDB, TrieError};
+pub use snap_sync_status::SnapSyncStatus;
 use state_healing::heal_state_trie;
 use state_sync::state_sync;
 use std::{
@@ -27,7 +29,7 @@ use std::{
 };
 use storage_healing::storage_healer;
 use tokio::{
-    sync::mpsc::error::SendError,
+    sync::{Mutex, mpsc::error::SendError},
     time::{Duration, Instant},
 };
 use tokio_util::sync::CancellationToken;
@@ -87,6 +89,7 @@ pub struct Syncer {
     // Used for cancelling long-living tasks upon shutdown
     cancel_token: CancellationToken,
     blockchain: Arc<Blockchain>,
+    snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
 }
 
 impl Syncer {
@@ -95,6 +98,7 @@ impl Syncer {
         snap_enabled: Arc<AtomicBool>,
         cancel_token: CancellationToken,
         blockchain: Arc<Blockchain>,
+        snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
     ) -> Self {
         Self {
             snap_enabled,
@@ -103,6 +107,7 @@ impl Syncer {
             trie_rebuilder: None,
             cancel_token,
             blockchain,
+            snap_sync_status,
         }
     }
 
@@ -119,6 +124,7 @@ impl Syncer {
             blockchain: Arc::new(Blockchain::default_with_store(
                 Store::new("", EngineType::InMemory).expect("Failed to start Sotre Engine"),
             )),
+            snap_sync_status: Default::default(),
         }
     }
 
@@ -171,9 +177,10 @@ impl Syncer {
         // This applies only to snap sync—full sync always starts fetching headers
         // from the canonical block, which updates as new block headers are fetched.
         if matches!(sync_mode, SyncMode::Snap) {
-            if let Some(last_header) = store.get_header_download_checkpoint().await? {
+            let header_checkpoint = self.snap_sync_status.lock().await.header_download_checkpoint;
+            if !header_checkpoint.is_zero() {
                 // Set latest downloaded header as current head for header fetching
-                current_head = last_header;
+                current_head = header_checkpoint;
             }
         }
 
@@ -253,7 +260,7 @@ impl Syncer {
                 search_head = last_block_hash;
                 current_head = last_block_hash;
                 if sync_mode == SyncMode::Snap {
-                    store.set_header_download_checkpoint(current_head).await?;
+                    self.snap_sync_status.lock().await.header_download_checkpoint = current_head;
                 }
             }
 
@@ -264,7 +271,7 @@ impl Syncer {
                     < MIN_FULL_BLOCKS as u64
                 {
                     // Too few blocks for a snap sync, switching to full sync
-                    store.clear_snap_state().await?;
+                    self.snap_sync_status.lock().await.clear();
                     sync_mode = SyncMode::Full;
                     self.snap_enabled.store(false, Ordering::Relaxed);
                 }
@@ -345,7 +352,7 @@ impl Syncer {
                 }
                 self.last_snap_pivot = pivot_header.number;
                 // Finished a sync cycle without aborting halfway, clear current checkpoint
-                store.clear_snap_state().await?;
+                self.snap_sync_status.lock().await.clear();
                 // Next sync will be full-sync
                 self.snap_enabled.store(false, Ordering::Relaxed);
             }
@@ -583,18 +590,16 @@ impl Syncer {
             self.trie_rebuilder = Some(TrieRebuilder::startup(
                 self.cancel_token.clone(),
                 store.clone(),
+                self.snap_sync_status.clone(),
             ));
         };
         // Perform state sync if it was not already completed on a previous cycle
         // Retrieve storage data to check which snap sync phase we are in
-        let key_checkpoints = store.get_state_trie_key_checkpoint().await?;
-        // If we have no key checkpoints or if the key checkpoints are lower than the segment boundaries we are in state sync phase
-        if key_checkpoints.is_none()
-            || key_checkpoints.is_some_and(|ch| {
-                ch.into_iter()
+        let key_checkpoints = self.snap_sync_status.lock().await.state_trie_key_checkpoint;
+        // If the key checkpoints are lower than the segment boundaries we are in state sync phase
+        if key_checkpoints.into_iter()
                     .zip(STATE_TRIE_SEGMENTS_END.into_iter())
                     .any(|(ch, end)| ch < end)
-            })
         {
             let storage_trie_rebuilder_sender = self
                 .trie_rebuilder
@@ -607,7 +612,7 @@ impl Syncer {
                 state_root,
                 store.clone(),
                 self.peers.clone(),
-                key_checkpoints,
+                self.snap_sync_status.clone(),
                 storage_trie_rebuilder_sender,
             )
             .await?;

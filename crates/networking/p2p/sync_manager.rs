@@ -15,7 +15,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     peer_handler::PeerHandler,
-    sync::{SyncMode, Syncer},
+    sync::{SnapSyncStatus, SyncMode, Syncer},
 };
 
 /// Abstraction to interact with the active sync process without disturbing it
@@ -36,6 +36,7 @@ impl SyncManager {
         cancel_token: CancellationToken,
         blockchain: Arc<Blockchain>,
         store: Store,
+        snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
     ) -> Self {
         let snap_enabled = Arc::new(AtomicBool::new(matches!(sync_mode, SyncMode::Snap)));
         let syncer = Arc::new(Mutex::new(Syncer::new(
@@ -43,6 +44,7 @@ impl SyncManager {
             snap_enabled.clone(),
             cancel_token,
             blockchain,
+            snap_sync_status,
         )));
         let sync_manager = Self {
             snap_enabled,

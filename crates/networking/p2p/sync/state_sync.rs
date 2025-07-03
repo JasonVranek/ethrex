@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-use super::{SHOW_PROGRESS_INTERVAL_DURATION, SyncError};
+use super::{SnapSyncStatus, SyncError, SHOW_PROGRESS_INTERVAL_DURATION};
 
 /// Downloads the leaf values of a Block's state trie by requesting snap state from peers
 /// Also downloads the storage tries & bytecodes for each downloaded account
@@ -39,7 +39,7 @@ pub(crate) async fn state_sync(
     state_root: H256,
     store: Store,
     peers: PeerHandler,
-    key_checkpoints: Option<[H256; STATE_TRIE_SEGMENTS]>,
+    snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
     storage_trie_rebuilder_sender: Sender<Vec<(H256, H256)>>,
 ) -> Result<bool, SyncError> {
     // Spawn tasks to fetch each state trie segment
@@ -54,7 +54,7 @@ pub(crate) async fn state_sync(
             peers.clone(),
             store.clone(),
             i,
-            key_checkpoints.map(|chs| chs[i]),
+            snap_sync_status.lock().await.state_trie_key_checkpoint[i],
             state_sync_progress.clone(),
             storage_trie_rebuilder_sender.clone(),
         ));
@@ -69,9 +69,7 @@ pub(crate) async fn state_sync(
     }
     show_progress_handle.abort();
     // Update state trie checkpoint
-    store
-        .set_state_trie_key_checkpoint(state_trie_checkpoint)
-        .await?;
+    snap_sync_status.lock().await.state_trie_key_checkpoint = state_trie_checkpoint;
     Ok(stale_pivot)
 }
 
@@ -86,12 +84,12 @@ async fn state_sync_segment(
     peers: PeerHandler,
     store: Store,
     segment_number: usize,
-    checkpoint: Option<H256>,
+    checkpoint: H256,
     state_sync_progress: StateSyncProgress,
     storage_trie_rebuilder_sender: Sender<Vec<(H256, H256)>>,
 ) -> Result<(usize, bool, H256), SyncError> {
     // Resume download from checkpoint if available or start from an empty trie
-    let mut start_account_hash = checkpoint.unwrap_or(STATE_TRIE_SEGMENTS_START[segment_number]);
+    let mut start_account_hash = checkpoint;
     // Write initial sync progress (this task is not vital so we can detach it)
     tokio::task::spawn(StateSyncProgress::init_segment(
         state_sync_progress.clone(),

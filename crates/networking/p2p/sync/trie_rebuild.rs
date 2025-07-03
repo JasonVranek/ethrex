@@ -9,9 +9,9 @@ use ethrex_common::{BigEndianHash, H256, U256, U512};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_storage::{MAX_SNAPSHOT_READS, STATE_TRIE_SEGMENTS, Store};
 use ethrex_trie::{EMPTY_TRIE_HASH, Nibbles, NodeRef, Trie, TrieError};
-use std::{array, collections::HashMap};
+use std::{array, collections::HashMap, sync::Arc};
 use tokio::{
-    sync::mpsc::{Receiver, Sender, channel},
+    sync::{mpsc::{channel, Receiver, Sender}, Mutex},
     task::JoinSet,
     time::Instant,
 };
@@ -21,8 +21,7 @@ use tracing::{debug, info, warn};
 use crate::sync::seconds_to_readable;
 
 use super::{
-    MAX_CHANNEL_MESSAGES, MAX_CHANNEL_READS, SHOW_PROGRESS_INTERVAL_DURATION,
-    STATE_TRIE_SEGMENTS_END, STATE_TRIE_SEGMENTS_START, SyncError,
+    SnapSyncStatus, SyncError, MAX_CHANNEL_MESSAGES, MAX_CHANNEL_READS, SHOW_PROGRESS_INTERVAL_DURATION, STATE_TRIE_SEGMENTS_END, STATE_TRIE_SEGMENTS_START
 };
 /// The storage root used to indicate that the storage to be rebuilt is not complete
 /// This will tell the rebuilder to skip storage root validations for this trie
@@ -61,17 +60,19 @@ impl TrieRebuilder {
     }
 
     /// starts the background trie rebuild process
-    pub fn startup(cancel_token: CancellationToken, store: Store) -> Self {
+    pub fn startup(cancel_token: CancellationToken, store: Store, snap_sync_status: Arc<Mutex<SnapSyncStatus>>) -> Self {
         let (storage_rebuilder_sender, storage_rebuilder_receiver) =
             channel::<Vec<(H256, H256)>>(MAX_CHANNEL_MESSAGES);
         let state_trie_rebuilder = tokio::task::spawn(rebuild_state_trie_in_backgound(
             store.clone(),
             cancel_token.clone(),
+            snap_sync_status.clone(),
         ));
         let storage_trie_rebuilder = tokio::task::spawn(rebuild_storage_trie_in_background(
             store,
             cancel_token,
             storage_rebuilder_receiver,
+            snap_sync_status.clone()
         ));
         Self {
             state_trie_rebuilder,
@@ -99,16 +100,15 @@ impl SegmentStatus {
 async fn rebuild_state_trie_in_backgound(
     store: Store,
     cancel_token: CancellationToken,
+    snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
 ) -> Result<(), SyncError> {
     // Get initial status from checkpoint if available (aka node restart)
-    let checkpoint = store.get_state_trie_rebuild_checkpoint().await?;
+    let (root_checkpoint, key_checkpoint) = snap_sync_status.lock().await.state_trie_rebuild_checkpoint;
     let mut rebuild_status = array::from_fn(|i| SegmentStatus {
-        current: checkpoint
-            .map(|(_, ch)| ch[i])
-            .unwrap_or(STATE_TRIE_SEGMENTS_START[i]),
+        current: key_checkpoint[i],
         end: STATE_TRIE_SEGMENTS_END[i],
     });
-    let mut root = checkpoint.map(|(root, _)| root).unwrap_or(*EMPTY_TRIE_HASH);
+    let mut root = root_checkpoint;
     let mut current_segment = 0;
     let mut total_rebuild_time = 0;
     let initial_rebuild_status = rebuild_status.clone();
@@ -136,6 +136,7 @@ async fn rebuild_state_trie_in_backgound(
                 current_segment,
                 store.clone(),
                 cancel_token.clone(),
+                snap_sync_status.clone(),
             )
             .await?;
 
@@ -149,7 +150,7 @@ async fn rebuild_state_trie_in_backgound(
         }
         // Update DB checkpoint
         let checkpoint = (root, rebuild_status.clone().map(|st| st.current));
-        store.set_state_trie_rebuild_checkpoint(checkpoint).await?;
+        snap_sync_status.lock().await.state_trie_rebuild_checkpoint = checkpoint;
         // Move on to the next segment
         current_segment = (current_segment + 1) % STATE_TRIE_SEGMENTS
     }
@@ -168,6 +169,7 @@ async fn rebuild_state_trie_segment(
     segment_number: usize,
     store: Store,
     cancel_token: CancellationToken,
+    snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
 ) -> Result<(H256, H256), SyncError> {
     let mut state_trie = store.open_state_trie(root)?;
     let mut snapshot_reads_since_last_commit = 0;
@@ -195,10 +197,7 @@ async fn rebuild_state_trie_segment(
         }
         // Return if we have no more snapshot accounts to process for this segemnt
         if unfilled_batch {
-            let state_sync_complete = store
-                .get_state_trie_key_checkpoint()
-                .await?
-                .is_some_and(|ch| ch[segment_number] == STATE_TRIE_SEGMENTS_END[segment_number]);
+            let state_sync_complete = snap_sync_status.lock().await.state_trie_key_checkpoint[segment_number] == STATE_TRIE_SEGMENTS_END[segment_number];
             // Mark segment as finished if state sync is complete
             if state_sync_complete {
                 start = STATE_TRIE_SEGMENTS_END[segment_number];
@@ -217,12 +216,10 @@ async fn rebuild_storage_trie_in_background(
     store: Store,
     cancel_token: CancellationToken,
     mut receiver: Receiver<Vec<(H256, H256)>>,
+    snap_sync_status: Arc<Mutex<SnapSyncStatus>>,
 ) -> Result<(), SyncError> {
     // (AccountHash, ExpectedRoot)
-    let mut pending_storages = store
-        .get_storage_trie_rebuild_pending()
-        .await?
-        .unwrap_or_default();
+    let mut pending_storages = snap_sync_status.lock().await.storage_trie_rebuild_pending.clone();
     let mut total_rebuild_time: u128 = 0;
     let mut last_show_progress = Instant::now();
     // Count of all storages that have entered the queue
@@ -268,9 +265,7 @@ async fn rebuild_storage_trie_in_background(
         rebuild_storage_tries(account_hashes, expected_roots, store.clone()).await?;
         total_rebuild_time += rebuild_start.elapsed().as_millis();
     }
-    store
-        .set_storage_trie_rebuild_pending(pending_storages)
-        .await?;
+    snap_sync_status.lock().await.storage_trie_rebuild_pending = pending_storages;
     Ok(())
 }
 
