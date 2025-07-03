@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use ethrex_common::{BigEndianHash, H256, U256, U512, constants::EMPTY_KECCACK_HASH, types::batch};
+use ethrex_common::{BigEndianHash, H256, U256, U512, constants::EMPTY_KECCACK_HASH};
 use ethrex_storage::{STATE_TRIE_SEGMENTS, Store};
 use ethrex_trie::EMPTY_TRIE_HASH;
 use tokio::{
@@ -170,8 +170,7 @@ pub(crate) async fn state_sync(
             } else {
                 last_storage_key = H256::zero();
             }
-            account_hashes.drain(..processed_count);
-            storage_roots.drain(..processed_count);
+            account_hashes_and_storage_roots.drain(..processed_count);
         }
 
         info!("Downloading bytecode for {} accounts", code_hashes.len());
