@@ -117,16 +117,21 @@ pub(crate) async fn state_sync(
                 let last_account = account_hashes_and_storage_roots
                     .last()
                     .expect("can't be empty");
+                info!(
+                    "Downloading big storage for account {}, with key {last_storage_key}",
+                    last_account.0
+                );
                 vec![last_account.clone()]
             } else {
-                account_hashes_and_storage_roots
+                let batch = account_hashes_and_storage_roots
                     .iter()
                     .take(STORAGE_BATCH_SIZE)
                     .cloned()
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                info!("Downloading storage for {} accounts", batch.len());
+                batch
             };
-            let (mut account_hashes, mut storage_roots): (Vec<_>, Vec<_>) =
-                batch.iter().cloned().unzip();
+            let (account_hashes, storage_roots): (Vec<_>, Vec<_>) = batch.iter().cloned().unzip();
 
             let Some((storage_keys, storage_values, should_continue)) = peers
                 .request_storage_ranges(
@@ -179,8 +184,13 @@ pub(crate) async fn state_sync(
         // Fetch bytecodes
         for batch in code_hashes.chunks(BYTECODE_BATCH_SIZE) {
             current_batch.extend_from_slice(batch);
+            info!(
+                "Downloading bytecode for batch of {} accounts",
+                current_batch.len()
+            );
             loop {
                 let Some(bytecode_batch) = peers.request_bytecodes(&current_batch).await else {
+                    warn!("Failed to fetch bytecode");
                     continue;
                 };
                 // Store the bytecodes
