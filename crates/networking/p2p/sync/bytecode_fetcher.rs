@@ -44,7 +44,7 @@ async fn fetch_bytecode_batch(
     peers: PeerHandler,
     store: Store,
 ) -> Result<Vec<H256>, SyncError> {
-    if let Some(bytecodes) = peers.request_bytecodes(batch.clone()).await {
+    if let Some(bytecodes) = peers.request_bytecodes(&batch).await {
         debug!("Received {} bytecodes", bytecodes.len());
         // Store the bytecodes
         for code in bytecodes.into_iter() {

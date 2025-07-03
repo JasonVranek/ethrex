@@ -430,13 +430,13 @@ impl PeerHandler {
     /// Returns the bytecodes or None if:
     /// - There are no available peers (the node just started up or was rejected by all other nodes)
     /// - No peer returned a valid response in the given time and retry limits
-    pub async fn request_bytecodes(&self, hashes: Vec<H256>) -> Option<Vec<Bytes>> {
+    pub async fn request_bytecodes(&self, hashes: &[H256]) -> Option<Vec<Bytes>> {
         let hashes_len = hashes.len();
         for _ in 0..REQUEST_RETRY_ATTEMPTS {
             let request_id = rand::random();
             let request = RLPxMessage::GetByteCodes(GetByteCodes {
                 id: request_id,
-                hashes: hashes.clone(),
+                hashes: hashes.to_vec(),
                 bytes: MAX_RESPONSE_BYTES,
             });
             let (_, mut peer_channel) = self
@@ -451,7 +451,7 @@ impl PeerHandler {
                 debug!("Failed to send message to peer: {err:?}");
                 continue;
             }
-            if let Some(codes) = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
+            let request_with_timeout = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
                 loop {
                     match receiver.recv().await {
                         Some(RLPxMessage::ByteCodes(ByteCodes { id, codes }))
@@ -464,11 +464,11 @@ impl PeerHandler {
                         None => return None,
                     }
                 }
-            })
-            .await
-            .ok()
-            .flatten()
-            .and_then(|codes| (!codes.is_empty() && codes.len() <= hashes_len).then_some(codes))
+            });
+            if let Some(codes) =
+                request_with_timeout.await.ok().flatten().and_then(|codes| {
+                    (!codes.is_empty() && codes.len() <= hashes_len).then_some(codes)
+                })
             {
                 return Some(codes);
             }
@@ -495,7 +495,7 @@ impl PeerHandler {
             let request = RLPxMessage::GetStorageRanges(GetStorageRanges {
                 id: request_id,
                 root_hash: state_root,
-                account_hashes: account_hashes.clone(),
+                account_hashes: account_hashes.to_vec(),
                 starting_hash: start,
                 limit_hash: HASH_MAX,
                 response_bytes: MAX_RESPONSE_BYTES,
@@ -512,7 +512,7 @@ impl PeerHandler {
                 debug!("Failed to send message to peer: {err:?}");
                 continue;
             }
-            if let Some((mut slots, proof)) = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
+            let request_with_timeout = tokio::time::timeout(PEER_REPLY_TIMEOUT, async move {
                 loop {
                     match receiver.recv().await {
                         Some(RLPxMessage::StorageRanges(StorageRanges { id, slots, proof }))
@@ -525,11 +525,8 @@ impl PeerHandler {
                         None => return None,
                     }
                 }
-            })
-            .await
-            .ok()
-            .flatten()
-            {
+            });
+            if let Some((mut slots, proof)) = request_with_timeout.await.ok().flatten() {
                 // Check we got a reasonable amount of storage ranges
                 if slots.len() > storage_roots.len() || slots.is_empty() {
                     return None;

@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use ethrex_common::{BigEndianHash, H256, U256, U512, constants::EMPTY_KECCACK_HASH};
+use ethrex_common::{BigEndianHash, H256, U256, U512, constants::EMPTY_KECCACK_HASH, types::batch};
 use ethrex_storage::{STATE_TRIE_SEGMENTS, Store};
 use ethrex_trie::EMPTY_TRIE_HASH;
 use tokio::{
@@ -22,12 +22,18 @@ use tracing::{debug, info, warn};
 use crate::{
     peer_handler::PeerHandler,
     sync::{
-        MAX_CHANNEL_MESSAGES, STATE_TRIE_SEGMENTS_END, STATE_TRIE_SEGMENTS_START, bytecode_fetcher,
-        seconds_to_readable, storage_fetcher::storage_fetcher,
+        BYTECODE_BATCH_SIZE, MAX_CHANNEL_MESSAGES, STATE_TRIE_SEGMENTS_END,
+        STATE_TRIE_SEGMENTS_START, STORAGE_BATCH_SIZE, bytecode_fetcher, seconds_to_readable,
+        storage_fetcher::storage_fetcher,
     },
 };
 
 use super::{SHOW_PROGRESS_INTERVAL_DURATION, SyncError};
+
+fn increase_hash_by_one(hash: &H256) -> H256 {
+    let next_hash_uint = U256::from_big_endian(&hash.0).saturating_add(U256::one());
+    H256::from_uint(&next_hash_uint)
+}
 
 pub(crate) async fn state_sync(
     state_root: H256,
@@ -42,7 +48,7 @@ pub(crate) async fn state_sync(
     let mut start_account_hash = range_start;
     let end_account_hash = H256::repeat_byte(0xff);
     let mut stale = false;
-    loop {
+    'outer: loop {
         info!(
             "Requesting accounts in range [{}, {}]",
             start_account_hash, end_account_hash
@@ -76,14 +82,122 @@ pub(crate) async fn state_sync(
 
         // Store the accounts in DB
         store
-            .write_snapshot_account_batch(account_hashes, accounts)
+            .write_snapshot_account_batch(account_hashes.clone(), accounts.clone())
             .await?;
 
-        // TODO: download storage & bytecode for each account
+        // Fetch Account Storage & Bytecode
+        let mut code_hashes = vec![];
+        let mut account_hashes_and_storage_roots = vec![];
+        for (account_hash, account) in account_hashes.iter().zip(accounts.iter()) {
+            // Ignore accounts without code / code we already have stored
+            // PERF: going to the DB here might be slow?
+            if account.code_hash != *EMPTY_KECCACK_HASH
+                && store.get_account_code(account.code_hash)?.is_none()
+            {
+                code_hashes.push(account.code_hash)
+            }
+            // Ignore accounts without storage and account's which storage hasn't changed from our current stored state
+            if account.storage_root != *EMPTY_TRIE_HASH
+                && !store.contains_storage_node(*account_hash, account.storage_root)?
+            {
+                account_hashes_and_storage_roots.push((*account_hash, account.storage_root));
+            }
+        }
+
+        info!(
+            "Downloading storage tries for {} accounts",
+            account_hashes_and_storage_roots.len()
+        );
+
+        // Fetch storage tries
+        let mut last_storage_key = H256::zero();
+        while account_hashes_and_storage_roots.len() > 0 {
+            // We got to a "big storage" account, so we need to request storage only for it
+            let batch = if !last_storage_key.is_zero() {
+                let last_account = account_hashes_and_storage_roots
+                    .last()
+                    .expect("can't be empty");
+                vec![last_account.clone()]
+            } else {
+                account_hashes_and_storage_roots
+                    .iter()
+                    .take(STORAGE_BATCH_SIZE)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            };
+            let (mut account_hashes, mut storage_roots): (Vec<_>, Vec<_>) =
+                batch.iter().cloned().unzip();
+
+            let Some((storage_keys, storage_values, should_continue)) = peers
+                .request_storage_ranges(
+                    state_root,
+                    storage_roots.clone(),
+                    account_hashes.clone(),
+                    last_storage_key,
+                )
+                .await
+            else {
+                warn!("Got no storages");
+                break 'outer;
+            };
+
+            // TODO: this probably should be fixed at the peer handler level
+            if storage_keys.is_empty() {
+                info!("Got no storage keys");
+                continue;
+            }
+
+            // Store downloaded storage range for each account
+            for (account_hash, (keys, values)) in account_hashes
+                .iter()
+                .zip(storage_keys.iter().zip(storage_values.iter()))
+            {
+                store
+                    .write_snapshot_storage_batch(*account_hash, keys.to_vec(), values.to_vec())
+                    .await?;
+            }
+
+            // Remove the processed account hashes and storage roots
+            let mut processed_count = storage_keys.len();
+            if should_continue {
+                processed_count -= 1; // Don't include the last account that we are still processing
+                let last_key = storage_keys
+                    .last()
+                    .and_then(|hv| hv.last().copied())
+                    .unwrap_or(H256::zero());
+
+                last_storage_key = increase_hash_by_one(&last_key);
+            } else {
+                last_storage_key = H256::zero();
+            }
+            account_hashes.drain(..processed_count);
+            storage_roots.drain(..processed_count);
+        }
+
+        info!("Downloading bytecode for {} accounts", code_hashes.len());
+
+        let mut current_batch = vec![];
+        // Fetch bytecodes
+        for batch in code_hashes.chunks(BYTECODE_BATCH_SIZE) {
+            current_batch.extend_from_slice(batch);
+            loop {
+                let Some(bytecode_batch) = peers.request_bytecodes(&current_batch).await else {
+                    continue;
+                };
+                // Store the bytecodes
+                // TODO: verify the code hash matches
+                let code_hashes = current_batch.drain(..bytecode_batch.len());
+                for (code_hash, code) in code_hashes.into_iter().zip(bytecode_batch) {
+                    store.add_account_code(code_hash, code).await?;
+                }
+                if current_batch.is_empty() {
+                    break;
+                }
+            }
+        }
 
         // Start the next range from the last account hash + 1
-        let next_start_uint = U256::from_big_endian(&next_start.0).saturating_add(U256::one());
-        start_account_hash = H256::from_uint(&next_start_uint);
+        start_account_hash = increase_hash_by_one(&next_start);
 
         if !should_continue {
             start_account_hash = end_account_hash;
