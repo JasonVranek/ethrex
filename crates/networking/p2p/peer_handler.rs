@@ -398,7 +398,7 @@ impl PeerHandler {
                 limit_hash: limit,
                 response_bytes: MAX_RESPONSE_BYTES,
             });
-            let (peer_id, peer_channel) = self
+            let (peer_id, mut peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
             peer_ids.insert(peer_id);
@@ -467,7 +467,7 @@ impl PeerHandler {
                 hashes: hashes.clone(),
                 bytes: MAX_RESPONSE_BYTES,
             });
-            let (peer_id, peer_channel) = self
+            let (peer_id, mut peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
             let mut receiver = peer_channel.receiver.lock().await;
@@ -534,7 +534,7 @@ impl PeerHandler {
                 limit_hash: HASH_MAX,
                 response_bytes: MAX_RESPONSE_BYTES,
             });
-            let (peer_id, peer_channel) = self
+            let (peer_id, mut peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
             peer_ids.insert(peer_id);
@@ -644,7 +644,7 @@ impl PeerHandler {
                     .collect(),
                 bytes: MAX_RESPONSE_BYTES,
             });
-            let (peer_id, peer_channel) = self
+            let (peer_id, mut peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
             peer_ids.insert(peer_id);
@@ -727,7 +727,7 @@ impl PeerHandler {
                     .collect(),
                 bytes: MAX_RESPONSE_BYTES,
             });
-            let (peer_id, peer_channel) = self
+            let (peer_id, mut peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
             peer_ids.insert(peer_id);
@@ -803,7 +803,7 @@ impl PeerHandler {
                 limit_hash: HASH_MAX,
                 response_bytes: MAX_RESPONSE_BYTES,
             });
-            let (peer_id, peer_channel) = self
+            let (peer_id, mut peer_channel) = self
                 .get_peer_channel_with_retry(&SUPPORTED_SNAP_CAPABILITIES)
                 .await?;
             peer_ids.insert(peer_id);
