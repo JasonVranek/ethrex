@@ -100,7 +100,7 @@ impl RLPxMessage for HelloMessage {
     fn encode(&self, mut buf: &mut dyn BufMut) -> Result<(), RLPEncodeError> {
         Encoder::new(&mut buf)
             .encode_field(&5_u8) // protocolVersion
-            .encode_field(&self.client_id) // clientId
+            .encode_field(&self.client_id)// clientId
             .encode_field(&self.capabilities) // capabilities
             .encode_field(&0u8) // listenPort (ignored)
             .encode_field(&decompress_pubkey(&self.node_id)) // nodeKey
