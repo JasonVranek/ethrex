@@ -52,7 +52,7 @@ pub(crate) async fn heal_state_trie(
     paths.push(Nibbles::default());
     let mut last_update = Instant::now();
     while !paths.is_empty() {
-        if last_update.elapsed() >= SHOW_PROGRESS_INTERVAL_DURATION {
+        if /*last_update.elapsed() >= SHOW_PROGRESS_INTERVAL_DURATION*/ true {
             last_update = Instant::now();
             let speed = healing_start.elapsed().as_millis() / total_healed as u128;
             info!(
