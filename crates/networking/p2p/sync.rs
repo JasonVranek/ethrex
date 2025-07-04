@@ -341,7 +341,11 @@ impl Syncer {
                     let block_number = block.header.number;
                     info!("Executing block: {block_number}");
                     // Check if we have the parent
-                    let parent_block = store.get_block_by_hash(block.header.parent_hash).await.unwrap().unwrap();
+                    let parent_block = store
+                        .get_block_by_hash(block.header.parent_hash)
+                        .await
+                        .unwrap()
+                        .unwrap();
                     if !store.contains_state_node(parent_block.header.state_root)? {
                         panic!("Missing state root for parent block")
                     }
