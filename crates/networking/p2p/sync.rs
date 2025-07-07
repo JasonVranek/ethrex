@@ -177,10 +177,10 @@ impl Syncer {
             }
         }
 
-        let pending_block = match store.get_pending_block(sync_head).await {
-            Ok(res) => res,
-            Err(e) => return Err(e.into()),
-        };
+        // let pending_block = match store.get_pending_block(sync_head).await {
+        //     Ok(res) => res,
+        //     Err(e) => return Err(e.into()),
+        // };
 
         // TODO(#2126): To avoid modifying the current_head while backtracking we use a separate search_head
         let mut search_head = current_head;
@@ -229,12 +229,12 @@ impl Syncer {
 
             // If we have a pending block from new_payload request
             // attach it to the end if it matches the parent_hash of the latest received header
-            if let Some(ref block) = pending_block {
-                if block.header.parent_hash == last_block_header.hash() {
-                    block_hashes.push(block.hash());
-                    block_headers.push(block.header.clone());
-                }
-            }
+            // if let Some(ref block) = pending_block {
+            //     if block.header.parent_hash == last_block_header.hash() {
+            //         block_hashes.push(block.hash());
+            //         block_headers.push(block.header.clone());
+            //     }
+            // }
 
             // Filter out everything after the sync_head
             let mut sync_head_found = false;
