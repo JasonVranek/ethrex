@@ -740,6 +740,7 @@ impl Store {
             Ok(n) => n.ok_or(StoreError::MissingLatestBlockNumber)?,
             Err(e) => return Err(e),
         };
+        info!("Latest block number: {latest_block_number}");
         self.get_canonical_block_hash(latest_block_number).await
     }
 
