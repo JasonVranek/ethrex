@@ -528,9 +528,7 @@ pub fn validate_block_header(
     parent_header: &BlockHeader,
     elasticity_multiplier: u64,
 ) -> Result<(), InvalidBlockHeaderError> {
-    if header.gas_used > header.gas_limit {
-        return Err(InvalidBlockHeaderError::GasUsedGreaterThanGasLimit);
-    }
+    validate_independant_header_fields(header)?;
 
     let expected_base_fee_per_gas = if let Some(base_fee) = calculate_base_fee_per_gas(
         header.gas_limit,
@@ -556,6 +554,21 @@ pub fn validate_block_header(
         return Err(InvalidBlockHeaderError::BlockNumberNotOneGreater);
     }
 
+    if header.parent_hash != parent_header.hash() {
+        return Err(InvalidBlockHeaderError::ParentHashIncorrect);
+    }
+
+    Ok(())
+}
+
+/// Validates block header values that are independant of the parent block
+pub fn validate_independant_header_fields(
+    header: &BlockHeader,
+) -> Result<(), InvalidBlockHeaderError> {
+    if header.gas_used > header.gas_limit {
+        return Err(InvalidBlockHeaderError::GasUsedGreaterThanGasLimit);
+    }
+
     if header.extra_data.len() > 32 {
         return Err(InvalidBlockHeaderError::ExtraDataTooLong);
     }
@@ -570,10 +583,6 @@ pub fn validate_block_header(
 
     if header.ommers_hash != *DEFAULT_OMMERS_HASH {
         return Err(InvalidBlockHeaderError::OmmersHashNotDefault);
-    }
-
-    if header.parent_hash != parent_header.hash() {
-        return Err(InvalidBlockHeaderError::ParentHashIncorrect);
     }
 
     Ok(())
