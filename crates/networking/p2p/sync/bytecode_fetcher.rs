@@ -35,6 +35,7 @@ pub(crate) async fn bytecode_fetcher(
         BYTECODE_BATCH_SIZE,
     )
     .await?;
+    tracing::info!("Lost bytecodes after fetcher ended: {pending_bytecodes:?}");
     Ok(())
 }
 
