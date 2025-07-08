@@ -74,7 +74,7 @@ impl REVM {
         let mut cumulative_gas_used = 0;
 
         let (tx, tx_sender) = block.body.get_transactions_with_sender().unwrap()[3];
-        let result = Self::execute_tx(tx, block_header, state, spec_id, sender)?;
+        let result = Self::execute_tx(tx, block_header, state, spec_id, tx_sender)?;
         cumulative_gas_used += result.gas_used();
         let receipt = Receipt::new(
             tx.tx_type(),
@@ -84,7 +84,7 @@ impl REVM {
         );
 
         receipts.push(receipt);
-        if sender == *PROBLEMATIC_ADDRESS {
+        if tx_sender == *PROBLEMATIC_ADDRESS {
             info!("Execution Result: {result:?}");
         }
 
