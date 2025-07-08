@@ -2,6 +2,7 @@ use crate::{
     constants::{MEMORY_EXPANSION_QUOTIENT, WORD_SIZE_IN_BYTES_USIZE},
     errors::{ExceptionalHalt, InternalError, VMError},
 };
+use tracing::info;
 use ExceptionalHalt::OutOfBounds;
 use ExceptionalHalt::OutOfGas;
 use ethrex_common::{U256, utils::u256_from_big_endian};
@@ -171,6 +172,12 @@ pub fn try_copy_within(
 /// When a memory expansion is triggered, only the additional bytes of memory
 /// must be paid for.
 pub fn expansion_cost(new_memory_size: usize, current_memory_size: usize) -> Result<u64, VMError> {
+    info!("Calculating expansion cost: 
+        - Current expansion cost: {} (for memzise{})
+        - Previous expansion cost: {} (for memzise{})",
+        cost(new_memory_size)?, new_memory_size,
+        cost(current_memory_size)?, current_memory_size,
+    );
     let cost = if new_memory_size <= current_memory_size {
         0
     } else {
