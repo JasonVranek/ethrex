@@ -23,6 +23,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     rc::Rc,
 };
+use tracing::info;
 
 pub type Storage = HashMap<U256, H256>;
 
@@ -153,6 +154,8 @@ impl<'a> VM<'a> {
             return Err(e);
         }
 
+        info!("Prepare execution already called");
+
         // Clear callframe backup so that changes made in prepare_execution are written in stone.
         // We want to apply these changes even if the Tx reverts. E.g. Incrementing sender nonce
         self.current_call_frame_mut()?.call_frame_backup.clear();
@@ -166,6 +169,7 @@ impl<'a> VM<'a> {
         }
 
         self.backup_substate();
+        info!("Before run execution: remaining gas {}", self.current_call_frame()?.gas_remaining);
         let context_result = self.run_execution()?;
 
         let report = self.finalize_execution(context_result)?;
