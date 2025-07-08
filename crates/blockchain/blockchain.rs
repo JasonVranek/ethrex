@@ -29,6 +29,7 @@ use ethrex_vm::backends::levm::db::DatabaseLogger;
 use ethrex_vm::{BlockExecutionResult, DynVmDatabase, Evm, EvmEngine, EvmError};
 use mempool::Mempool;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -41,6 +42,10 @@ use ethrex_metrics::metrics_blocks::METRICS_BLOCKS;
 
 #[cfg(feature = "c-kzg")]
 use ethrex_common::types::BlobsBundle;
+
+lazy_static::lazy_static! {
+    pub static ref PROBLEMATIC_ADDRESS: Address = Address::from_str("0x2a47818ca9c5685e83d9151d66e19e08d65a89ad").unwrap();
+}
 
 //TODO: Implement a struct Chain or BlockChain to encapsulate
 //functionality and canonical chain state and config

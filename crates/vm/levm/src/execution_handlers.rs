@@ -252,7 +252,12 @@ impl<'a> VM<'a> {
                 output: Bytes::new(),
             }));
         }
-
+        if new_contract_address == *crate::PROBLEMATIC_ADDRESS {
+            ::tracing::info!(
+                "Problematic address is a result of creation, initial increase: {}",
+                self.current_call_frame()?.msg_value
+            );
+        }
         self.increase_account_balance(new_contract_address, self.current_call_frame()?.msg_value)?;
 
         self.increment_account_nonce(new_contract_address)?;

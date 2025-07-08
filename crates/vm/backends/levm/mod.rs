@@ -7,6 +7,7 @@ use crate::constants::{
     SYSTEM_ADDRESS, WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS,
 };
 use crate::{EvmError, ExecutionResult};
+use ::tracing::info;
 use bytes::Bytes;
 use ethrex_common::{
     Address, H256, U256,
@@ -29,6 +30,11 @@ use ethrex_levm::{
 };
 use std::cmp::min;
 use std::collections::HashMap;
+use std::str::FromStr;
+
+lazy_static::lazy_static! {
+    pub static ref PROBLEMATIC_ADDRESS: Address = Address::from_str("0x2a47818ca9c5685e83d9151d66e19e08d65a89ad").unwrap();
+}
 
 // Export needed types
 pub use ethrex_levm::db::CacheDB;
@@ -51,9 +57,18 @@ impl LEVM {
         let mut receipts = Vec::new();
         let mut cumulative_gas_used = 0;
 
-        for (tx, tx_sender) in block.body.get_transactions_with_sender().map_err(|error| {
-            EvmError::Transaction(format!("Couldn't recover addresses with error: {error}"))
-        })? {
+        for (i, (tx, tx_sender)) in block
+            .body
+            .get_transactions_with_sender()
+            .map_err(|error| {
+                EvmError::Transaction(format!("Couldn't recover addresses with error: {error}"))
+            })?
+            .into_iter()
+            .enumerate()
+        {
+            if tx_sender == *PROBLEMATIC_ADDRESS {
+                info!("Problematic address is sender of tx at idx {i}");
+            }
             let report = Self::execute_tx(tx, tx_sender, &block.header, db, vm_type.clone())?;
 
             cumulative_gas_used += report.gas_used;
@@ -266,6 +281,9 @@ impl LEVM {
             .filter(|withdrawal| withdrawal.amount > 0)
             .map(|w| (w.address, u128::from(w.amount) * u128::from(GWEI_TO_WEI)))
         {
+            if address == *PROBLEMATIC_ADDRESS {
+                info!("Problematic address received withdrawal of amount {increment}")
+            }
             let mut account = db
                 .get_account(address)
                 .map_err(|_| EvmError::DB(format!("Withdrawal account {address} not found")))?
