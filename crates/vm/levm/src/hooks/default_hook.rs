@@ -4,13 +4,14 @@ use crate::{
     gas_cost::{self, STANDARD_TOKEN_COST, TOTAL_COST_FLOOR_PER_TOKEN},
     hooks::hook::Hook,
     utils::*,
-    vm::VM,
+    vm::VM, PROBLEMATIC_ADDRESS,
 };
 
 use ethrex_common::{
     Address, U256,
     types::{Account, Fork},
 };
+use tracing::info;
 
 use std::cmp::max;
 
@@ -31,6 +32,9 @@ impl Hook for DefaultHook {
         let sender_address = vm.env.origin;
         let (sender_balance, sender_nonce) = {
             let sender_account = vm.db.get_account(sender_address)?;
+            if vm.env.origin == *PROBLEMATIC_ADDRESS {
+                info!("Problematic sender balance pre exec: {}", sender_account.info.balance);
+            }
             (sender_account.info.balance, sender_account.info.nonce)
         };
 
@@ -151,7 +155,9 @@ pub fn undo_value_transfer(vm: &mut VM<'_>) -> Result<(), VMError> {
             vm.current_call_frame()?.msg_value,
         )?;
     }
-
+    if vm.env.origin == *PROBLEMATIC_ADDRESS {
+        info!("Undoing value transfer of value: {}", vm.current_call_frame()?.msg_value);
+    }
     vm.increase_account_balance(vm.env.origin, vm.current_call_frame()?.msg_value)?;
 
     Ok(())
@@ -179,6 +185,10 @@ pub fn refund_sender(
         .gas_price
         .checked_mul(U256::from(gas_to_return))
         .ok_or(InternalError::Overflow)?;
+
+    if vm.env.origin == *PROBLEMATIC_ADDRESS {
+        info!("Refunding problematic sender by : {wei_return_amount}");
+    }
 
     vm.increase_account_balance(vm.env.origin, wei_return_amount)?;
 
