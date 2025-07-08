@@ -43,6 +43,7 @@ impl Hook for DefaultHook {
         }
 
         // (1) GASLIMIT_PRICE_PRODUCT_OVERFLOW
+        info!("Calculating gaslimit_price_product: {}(gas_price) * {}(gas_limit)", vm.env.gas_price, vm.env.gas_limit);
         let gaslimit_price_product = vm
             .env
             .gas_price
