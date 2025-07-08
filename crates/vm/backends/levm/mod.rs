@@ -80,6 +80,7 @@ impl LEVM {
             if tx_sender == *PROBLEMATIC_ADDRESS {
                 info!("Problematic address is sender of tx at idx {i}");
                 info!("Problematic tx: {:?}", tx);
+                info!("Execution Report: {report:?}");
                 break;
             }
         }

@@ -88,6 +88,7 @@ impl REVM {
             receipts.push(receipt);
             if sender == *PROBLEMATIC_ADDRESS {
                 info!("Stopping after tx with problematic sender");
+                info!("Execution Result: {result:?}");
                 break;
             }
         }
