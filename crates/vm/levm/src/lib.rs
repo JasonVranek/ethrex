@@ -18,6 +18,7 @@ pub use environment::*;
 pub mod l2_precompiles;
 
 use std::str::FromStr;
+use ethrex_common::Address;
 
 lazy_static::lazy_static! {
     pub static ref PROBLEMATIC_ADDRESS: Address = Address::from_str("0x2a47818ca9c5685e83d9151d66e19e08d65a89ad").unwrap();
