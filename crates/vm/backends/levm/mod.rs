@@ -66,9 +66,6 @@ impl LEVM {
             .into_iter()
             .enumerate()
         {
-            if tx_sender == *PROBLEMATIC_ADDRESS {
-                info!("Problematic address is sender of tx at idx {i}");
-            }
             let report = Self::execute_tx(tx, tx_sender, &block.header, db, vm_type.clone())?;
 
             cumulative_gas_used += report.gas_used;
@@ -80,6 +77,11 @@ impl LEVM {
             );
 
             receipts.push(receipt);
+            if tx_sender == *PROBLEMATIC_ADDRESS {
+                info!("Problematic address is sender of tx at idx {i}");
+                info!("Problematic tx: {:?}", tx);
+                break;
+            }
         }
 
         if let Some(withdrawals) = &block.body.withdrawals {

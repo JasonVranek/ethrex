@@ -2,6 +2,7 @@ pub mod db;
 pub mod helpers;
 mod tracing;
 
+use super::levm::PROBLEMATIC_ADDRESS;
 use super::BlockExecutionResult;
 use crate::backends::revm::db::EvmState;
 use crate::constants::{
@@ -38,6 +39,7 @@ use revm_primitives::{
     Authorization as RevmAuthorization, FixedBytes, SignedAuthorization, SpecId,
     TxKind as RevmTxKind, U256 as RevmU256, ruint::Uint,
 };
+use ::tracing::info;
 use std::cmp::min;
 
 #[derive(Debug)]
@@ -84,6 +86,10 @@ impl REVM {
             );
 
             receipts.push(receipt);
+            if sender == *PROBLEMATIC_ADDRESS {
+                info!("Stopping after tx with problematic sender");
+                break;
+            }
         }
 
         if let Some(withdrawals) = &block.body.withdrawals {
