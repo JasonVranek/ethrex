@@ -6,12 +6,14 @@ use ethrex_common::Address;
 use ethrex_common::U256;
 use ethrex_common::types::Account;
 use keccak_hash::H256;
+use tracing::info;
 
 use crate::call_frame::CallFrameBackup;
 use crate::errors::InternalError;
 use crate::errors::VMError;
 use crate::utils::restore_cache_state;
 use crate::vm::VM;
+use crate::PROBLEMATIC_ADDRESS;
 
 use super::CacheDB;
 use super::Database;
@@ -181,6 +183,12 @@ impl<'a> VM<'a> {
         to: Address,
         value: U256,
     ) -> Result<(), InternalError> {
+        if from == *PROBLEMATIC_ADDRESS {
+            info!("Transfering {value} out of problematic address to {to}")
+        }
+        if to == *PROBLEMATIC_ADDRESS {
+            info!("Transfering {value} into problematic address from {from}")
+        }
         self.decrease_account_balance(from, value)?;
         self.increase_account_balance(to, value)?;
         Ok(())

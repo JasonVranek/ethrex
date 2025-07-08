@@ -467,7 +467,9 @@ pub fn deduct_caller(
     // in ef_tests. We went for "InsufficientAccountFunds" simply
     // because if the upfront cost is bigger than U256, then,
     // technically, the sender will not be able to pay it.
-
+    if sender_address == *PROBLEMATIC_ADDRESS {
+        info!("Deducting problematic caller: -{up_front_cost}");
+    }
     vm.decrease_account_balance(sender_address, up_front_cost)
         .map_err(|_| TxValidationError::InsufficientAccountFunds)?;
 
