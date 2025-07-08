@@ -2,8 +2,8 @@ pub mod db;
 pub mod helpers;
 mod tracing;
 
-use super::BlockExecutionResult;
 use super::levm::PROBLEMATIC_ADDRESS;
+use super::BlockExecutionResult;
 use crate::backends::revm::db::EvmState;
 use crate::constants::{
     BEACON_ROOTS_ADDRESS, CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS, HISTORY_STORAGE_ADDRESS,
@@ -26,7 +26,6 @@ use revm::{
 };
 use revm_inspectors::access_list::AccessListInspector;
 // Rename imported types for clarity
-use ::tracing::info;
 use ethrex_common::{
     Address,
     types::{
@@ -40,6 +39,7 @@ use revm_primitives::{
     Authorization as RevmAuthorization, FixedBytes, SignedAuthorization, SpecId,
     TxKind as RevmTxKind, U256 as RevmU256, ruint::Uint,
 };
+use ::tracing::info;
 use std::cmp::min;
 
 #[derive(Debug)]
@@ -73,19 +73,24 @@ impl REVM {
         let mut receipts = Vec::new();
         let mut cumulative_gas_used = 0;
 
-        let (tx, tx_sender) = block.body.get_transactions_with_sender().unwrap()[3];
-        let result = Self::execute_tx(tx, block_header, state, spec_id, tx_sender)?;
-        cumulative_gas_used += result.gas_used();
-        let receipt = Receipt::new(
-            tx.tx_type(),
-            result.is_success(),
-            cumulative_gas_used,
-            result.logs(),
-        );
+        for (tx, sender) in block.body.get_transactions_with_sender().map_err(|error| {
+            EvmError::Transaction(format!("Couldn't recover addresses with error: {error}"))
+        })? {
+            let result = Self::execute_tx(tx, block_header, state, spec_id, sender)?;
+            cumulative_gas_used += result.gas_used();
+            let receipt = Receipt::new(
+                tx.tx_type(),
+                result.is_success(),
+                cumulative_gas_used,
+                result.logs(),
+            );
 
-        receipts.push(receipt);
-        if tx_sender == *PROBLEMATIC_ADDRESS {
-            info!("Execution Result: {result:?}");
+            receipts.push(receipt);
+            if sender == *PROBLEMATIC_ADDRESS {
+                info!("Stopping after tx with problematic sender");
+                info!("Execution Result: {result:?}");
+                break;
+            }
         }
 
         if let Some(withdrawals) = &block.body.withdrawals {
