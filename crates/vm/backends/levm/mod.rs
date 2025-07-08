@@ -456,6 +456,7 @@ impl LEVM {
         let chain_config = db.store.get_chain_config()?;
         let block_header = &block.header;
         let fork = chain_config.fork(block_header.timestamp);
+        info!("Current fork: {fork}");
 
         // TODO: I don't like deciding the behavior based on the VMType here.
         if let VMType::L2 = vm_type {
