@@ -8,6 +8,7 @@ use crate::{
     vm::VM,
 };
 use ethrex_common::{H256, U256, types::Fork};
+use tracing::info;
 
 // Stack, Memory, Storage and Flow Operations (15)
 // Opcodes: POP, MLOAD, MSTORE, MSTORE8, SLOAD, SSTORE, JUMP, JUMPI, PC, MSIZE, GAS, JUMPDEST, TLOAD, TSTORE, MCOPY
@@ -74,11 +75,12 @@ impl<'a> VM<'a> {
         let [offset] = *current_call_frame.stack.pop()?;
 
         let new_memory_size = calculate_memory_size(offset, WORD_SIZE_IN_BYTES_USIZE)?;
-
-        current_call_frame.increase_consumed_gas(gas_cost::mload(
+        let gas_cost = gas_cost::mload(
             new_memory_size,
             current_call_frame.memory.len(),
-        )?)?;
+        )?;
+        info!("[OP_MLOAD] new_memory_size: {new_memory_size}, current_memory_size: {}, gas_cost: {gas_cost}", current_call_frame.memory.len());
+        current_call_frame.increase_consumed_gas(gas_cost)?;
 
         current_call_frame
             .stack
