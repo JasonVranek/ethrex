@@ -521,6 +521,7 @@ impl Blockchain {
         let account_updates = vm
             .get_state_transitions()
             .map_err(|err| (ChainError::EvmError(err), None))?;
+        info!("Account updates: {:?}", account_updates);
 
         let last_block = blocks
             .last()
