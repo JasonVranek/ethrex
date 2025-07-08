@@ -148,7 +148,8 @@ impl Blockchain {
     ) -> Result<BlockExecutionResult, ChainError> {
         // Validate the block pre-execution
         validate_block(block, parent_header, chain_config, ELASTICITY_MULTIPLIER)?;
-
+        let trace = vm.trace_tx_calls(block, 3, false, true).unwrap();
+        info!("CallTrace: {trace:?}");
         let execution_result = vm.execute_block(block)?;
 
         // Validate execution went alright
