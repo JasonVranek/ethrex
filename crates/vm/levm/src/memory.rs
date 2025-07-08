@@ -183,6 +183,8 @@ pub fn expansion_cost(new_memory_size: usize, current_memory_size: usize) -> Res
 
 /// The total cost for a given memory size.
 fn cost(memory_size: usize) -> Result<u64, VMError> {
+    // memory_size_word = memory_size + (32 - 1)/ 32
+    // gas_cost = memory_size_word ** 2 / 512 + 3 * memory_size_word
     let memory_size_word = memory_size
         .checked_add(
             WORD_SIZE_IN_BYTES_USIZE
@@ -210,6 +212,6 @@ pub fn calculate_memory_size(offset: U256, size: usize) -> Result<usize, VMError
 
     offset
         .checked_add(size)
-        .and_then(|sum| sum.checked_next_multiple_of(WORD_SIZE_IN_BYTES_USIZE))
+        .and_then(|sum| sum.checked_mul(WORD_SIZE_IN_BYTES_USIZE))
         .ok_or(OutOfBounds.into())
 }
