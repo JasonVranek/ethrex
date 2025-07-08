@@ -99,6 +99,7 @@ impl<'a> VM<'a> {
         self.initialize_substate()?;
 
         let (callee, is_create) = self.get_tx_callee()?;
+        tracing::info!("Creating inital call frame with gas_limit: {}", self.env.gas_limit);
 
         let initial_call_frame = CallFrame::new(
             self.env.origin,
