@@ -216,10 +216,7 @@ pub fn calculate_memory_size(offset: U256, size: usize) -> Result<usize, VMError
     }
 
     let offset: usize = offset.try_into().map_err(|_err| OutOfGas)?;
+    Ok(((offset + size + 31)/ 32) * 32)
 
-    offset
-        .checked_add(size)
-        .and_then(|sum| sum.checked_next_multiple_of(WORD_SIZE_IN_BYTES_USIZE))
-        .ok_or(OutOfBounds.into())
 }
 
