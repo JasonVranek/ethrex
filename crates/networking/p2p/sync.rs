@@ -417,7 +417,7 @@ impl Syncer {
         }
 
         let blocks_len = blocks.len();
-        debug!(
+        info!(
             "Starting to execute and validate {} blocks in batch",
             blocks_len
         );
