@@ -1,10 +1,11 @@
 use crate::{
+    PROBLEMATIC_ADDRESS,
     constants::*,
     errors::{ContextResult, InternalError, TxValidationError, VMError},
     gas_cost::{self, STANDARD_TOKEN_COST, TOTAL_COST_FLOOR_PER_TOKEN},
     hooks::hook::Hook,
     utils::*,
-    vm::VM, PROBLEMATIC_ADDRESS,
+    vm::VM,
 };
 
 use ethrex_common::{
@@ -33,7 +34,10 @@ impl Hook for DefaultHook {
         let (sender_balance, sender_nonce) = {
             let sender_account = vm.db.get_account(sender_address)?;
             if vm.env.origin == *PROBLEMATIC_ADDRESS {
-                info!("Problematic sender balance pre exec: {}", sender_account.info.balance);
+                info!(
+                    "Problematic sender balance pre exec: {}",
+                    sender_account.info.balance
+                );
             }
             (sender_account.info.balance, sender_account.info.nonce)
         };
@@ -43,7 +47,10 @@ impl Hook for DefaultHook {
         }
 
         // (1) GASLIMIT_PRICE_PRODUCT_OVERFLOW
-        info!("Calculating gaslimit_price_product: {}(gas_price) * {}(gas_limit)", vm.env.gas_price, vm.env.gas_limit);
+        info!(
+            "Calculating gaslimit_price_product: {}(gas_price) * {}(gas_limit)",
+            vm.env.gas_price, vm.env.gas_limit
+        );
         let gaslimit_price_product = vm
             .env
             .gas_price
@@ -157,7 +164,10 @@ pub fn undo_value_transfer(vm: &mut VM<'_>) -> Result<(), VMError> {
         )?;
     }
     if vm.env.origin == *PROBLEMATIC_ADDRESS {
-        info!("Undoing value transfer of value: {}", vm.current_call_frame()?.msg_value);
+        info!(
+            "Undoing value transfer of value: {}",
+            vm.current_call_frame()?.msg_value
+        );
     }
     vm.increase_account_balance(vm.env.origin, vm.current_call_frame()?.msg_value)?;
 
@@ -470,11 +480,12 @@ pub fn deduct_caller(
     // technically, the sender will not be able to pay it.
     if sender_address == *PROBLEMATIC_ADDRESS {
         info!("Deducting problematic caller: -{up_front_cost}");
-        info!("Price breakdown: 
+        info!(
+            "Price breakdown: 
         - gas_limit_price_product: {gas_limit_price_product}
         - value: {value}
         - blob_gas_cost: {blob_gas_cost}",
-    )
+        )
     }
     vm.decrease_account_balance(sender_address, up_front_cost)
         .map_err(|_| TxValidationError::InsufficientAccountFunds)?;

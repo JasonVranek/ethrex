@@ -9,8 +9,8 @@ use crate::{
 use bytes::Bytes;
 use ethrex_common::{Address, U256, types::Account};
 use keccak_hash::H256;
-use tracing::info;
 use std::{collections::HashMap, fmt};
+use tracing::info;
 
 #[derive(Clone, PartialEq, Eq)]
 /// The EVM uses a stack-based architecture and does not use registers like some other VMs.

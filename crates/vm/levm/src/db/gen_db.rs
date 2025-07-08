@@ -8,12 +8,12 @@ use ethrex_common::types::Account;
 use keccak_hash::H256;
 use tracing::info;
 
+use crate::PROBLEMATIC_ADDRESS;
 use crate::call_frame::CallFrameBackup;
 use crate::errors::InternalError;
 use crate::errors::VMError;
 use crate::utils::restore_cache_state;
 use crate::vm::VM;
-use crate::PROBLEMATIC_ADDRESS;
 
 use super::CacheDB;
 use super::Database;

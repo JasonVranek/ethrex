@@ -56,33 +56,21 @@ impl LEVM {
 
         let mut receipts = Vec::new();
         let mut cumulative_gas_used = 0;
+        let (tx, tx_sender) = block.body.get_transactions_with_sender().unwrap()[3];
+        let report = Self::execute_tx(tx, tx_sender, &block.header, db, vm_type.clone())?;
 
-        for (i, (tx, tx_sender)) in block
-            .body
-            .get_transactions_with_sender()
-            .map_err(|error| {
-                EvmError::Transaction(format!("Couldn't recover addresses with error: {error}"))
-            })?
-            .into_iter()
-            .enumerate()
-        {
-            let report = Self::execute_tx(tx, tx_sender, &block.header, db, vm_type.clone())?;
+        cumulative_gas_used += report.gas_used;
+        let receipt = Receipt::new(
+            tx.tx_type(),
+            matches!(report.result.clone(), TxResult::Success),
+            cumulative_gas_used,
+            report.logs.clone(),
+        );
 
-            cumulative_gas_used += report.gas_used;
-            let receipt = Receipt::new(
-                tx.tx_type(),
-                matches!(report.result.clone(), TxResult::Success),
-                cumulative_gas_used,
-                report.logs.clone(),
-            );
-
-            receipts.push(receipt);
-            if tx_sender == *PROBLEMATIC_ADDRESS {
-                info!("Problematic address is sender of tx at idx {i}");
-                info!("Problematic tx: {:?}", tx);
-                info!("Execution Report: {report:?}");
-                break;
-            }
+        receipts.push(receipt);
+        if tx_sender == *PROBLEMATIC_ADDRESS {
+            info!("Problematic tx: {:?}", tx);
+            info!("Execution Report: {report:?}");
         }
 
         if let Some(withdrawals) = &block.body.withdrawals {
