@@ -66,6 +66,7 @@ impl LEVM {
             .into_iter()
             .enumerate()
         {
+            info!("Eexcuting tx at index: {i}");
             let report = Self::execute_tx(tx, tx_sender, &block.header, db, vm_type.clone())?;
 
             cumulative_gas_used += report.gas_used;
